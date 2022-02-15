@@ -2,16 +2,17 @@ package handler
 
 import (
 	"net/http"
+
+	cache "github.com/victorspringer/http-cache"
 )
 
 func CacheMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		token := r.Header.Get(headerToken)
-		if cacheClient != nil && token != "" {
+		cacheClient := r.Context().Value(cacheClientCtxKey).(*cache.Client)
+		if cacheClient != nil {
 			mu.RLock()
 			defer mu.RUnlock()
 
-			r.URL.Query().Set(headerToken, token)
 			cacheClient.Middleware(next).ServeHTTP(w, r)
 		} else {
 			next.ServeHTTP(w, r)

@@ -17,7 +17,10 @@ import (
 var (
 	proxy       *httputil.ReverseProxy
 	redisClient *redis.Client
-	cacheClient *cache.Client
+
+	cacheClientCtxKey  = ctxKeyType{}
+	userCacheClient    *cache.Client
+	dynamicCacheClient *cache.Client
 
 	mu sync.RWMutex
 	ml common.MultipleLock
@@ -40,9 +43,13 @@ func init() {
 		if err == nil {
 			redisClient = redis.NewClient(options)
 			adapter := NewCacheAdapter(redisClient)
-			cacheClient, _ = cache.NewClient(
+			userCacheClient, _ = cache.NewClient(
 				cache.ClientWithAdapter(adapter),
 				cache.ClientWithTTL(time.Hour*24),
+			)
+			dynamicCacheClient, _ = cache.NewClient(
+				cache.ClientWithAdapter(adapter),
+				cache.ClientWithTTL(time.Second*5),
 			)
 		}
 	}
