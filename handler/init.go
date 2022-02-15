@@ -72,3 +72,7 @@ func init() {
 func Handler(w http.ResponseWriter, r *http.Request) {
 	proxy.ServeHTTP(w, r)
 }
+
+func WebHandler(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, "https://app.plex.tv/desktop", http.StatusMovedPermanently)
+}

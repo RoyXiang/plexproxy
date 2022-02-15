@@ -15,6 +15,8 @@ import (
 func newRouter() http.Handler {
 	r := mux.NewRouter()
 
+	r.Methods(http.MethodGet).PathPrefix("/web/").HandlerFunc(handler.WebHandler)
+
 	refreshRouter := r.Methods(http.MethodPut).Subrouter()
 	refreshRouter.Use(handler.RefreshMiddleware)
 	refreshRouter.Path("/library/sections/{id}/refresh").HandlerFunc(handler.Handler)
