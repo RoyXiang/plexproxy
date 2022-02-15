@@ -7,7 +7,7 @@ import (
 func CacheMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := r.Header.Get(headerToken)
-		if token != "" {
+		if cacheClient != nil && token != "" {
 			mu.RLock()
 			defer mu.RUnlock()
 
