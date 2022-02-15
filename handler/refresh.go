@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/urfave/negroni"
@@ -17,8 +18,11 @@ func RefreshMiddleware(next http.Handler) http.Handler {
 				mu.Lock()
 				defer mu.Unlock()
 
-				cmd := redisClient.Eval(context.Background(), redisScriptRemoveAllWithPrefix, []string{}, cachePrefixDynamic)
-				_ = cmd.Err()
+				ctx := context.Background()
+				keys := redisClient.Keys(ctx, fmt.Sprintf("%s*", cachePrefixDynamic)).Val()
+				if len(keys) > 0 {
+					redisClient.Del(ctx, keys...).Val()
+				}
 			}()
 		}
 	})
