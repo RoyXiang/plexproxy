@@ -14,6 +14,7 @@ import (
 
 func newRouter() http.Handler {
 	r := mux.NewRouter()
+	r.Use(handler.LoggingMiddleware)
 
 	r.Methods(http.MethodGet).PathPrefix("/web/").HandlerFunc(handler.WebHandler)
 	r.Path("/:/eventsource/notifications").HandlerFunc(handler.Handler)
