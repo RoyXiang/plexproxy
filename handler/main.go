@@ -2,9 +2,9 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"net/http"
-
-	"github.com/RoyXiang/plexproxy/common"
+	"net/http/httptest"
 )
 
 func getRequestParam(r *http.Request, key string, delete bool) string {
@@ -24,24 +24,29 @@ func getRequestParam(r *http.Request, key string, delete bool) string {
 	return result
 }
 
-func (w *fakeCloseReadCloser) Close() error {
+func newMockHTTPRespWriter() *mockHTTPRespWriter {
+	return &mockHTTPRespWriter{
+		httptest.NewRecorder(),
+	}
+}
+
+func (w *mockHTTPRespWriter) WriteResponse() error {
 	return nil
 }
 
-func (w *fakeCloseReadCloser) RealClose() error {
-	if w.ReadCloser == nil {
-		return nil
+func (w *mockHTTPRespWriter) WriteRespHeaders(status int, header http.Header) error {
+	w.WriteHeader(status)
+	for header, val := range header {
+		w.Header()[header] = val
 	}
-	return w.ReadCloser.Close()
+	return nil
+}
+
+func (w *mockHTTPRespWriter) Read(_ []byte) (int, error) {
+	return 0, fmt.Errorf("mockHTTPRespWriter doesn't implement io.Reader")
 }
 
 func Handler(w http.ResponseWriter, r *http.Request) {
-	if r.Body != nil {
-		r.Body = &fakeCloseReadCloser{r.Body}
-		defer func() {
-			_ = r.Body.(*fakeCloseReadCloser).RealClose()
-		}()
-	}
 	proxy.ServeHTTP(w, r)
 }
 
@@ -54,7 +59,7 @@ func TimelineHandler(w http.ResponseWriter, r *http.Request) {
 		request := r.Clone(context.Background())
 		go func() {
 			getRequestParam(request, headerToken, true)
-			plaxtProxy.ServeHTTP(common.NewCustomResponseWriter(), request)
+			plaxtProxy.ServeHTTP(newMockHTTPRespWriter(), request)
 		}()
 	}
 
