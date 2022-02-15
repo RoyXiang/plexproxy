@@ -10,7 +10,9 @@ func StaticMiddleware(next http.Handler) http.Handler {
 		if staticCacheClient != nil {
 			ctx := context.WithValue(context.Background(), cacheClientCtxKey, staticCacheClient)
 			r = r.Clone(ctx)
+			CacheMiddleware(next).ServeHTTP(w, r)
+			return
 		}
-		CacheMiddleware(next).ServeHTTP(w, r)
+		next.ServeHTTP(w, r)
 	})
 }

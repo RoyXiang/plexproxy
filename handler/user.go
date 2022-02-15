@@ -12,8 +12,10 @@ func UserMiddleware(next http.Handler) http.Handler {
 				ctx := context.WithValue(context.Background(), cacheClientCtxKey, userCacheClient)
 				r = r.Clone(ctx)
 				r.URL.Query().Set(headerToken, token)
+				CacheMiddleware(next).ServeHTTP(w, r)
+				return
 			}
 		}
-		CacheMiddleware(next).ServeHTTP(w, r)
+		next.ServeHTTP(w, r)
 	})
 }
