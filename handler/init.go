@@ -11,7 +11,6 @@ import (
 
 	"github.com/RoyXiang/plexproxy/common"
 	"github.com/go-redis/redis/v8"
-	"github.com/urfave/negroni"
 	"github.com/victorspringer/http-cache"
 )
 
@@ -52,6 +51,5 @@ func init() {
 }
 
 func Handler(w http.ResponseWriter, r *http.Request) {
-	lrw := negroni.NewResponseWriter(w)
-	proxy.ServeHTTP(lrw, r)
+	proxy.ServeHTTP(w, r)
 }

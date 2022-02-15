@@ -10,7 +10,6 @@ import (
 
 	"github.com/RoyXiang/plexproxy/handler"
 	"github.com/gorilla/mux"
-	"github.com/urfave/negroni"
 )
 
 func newRouter() http.Handler {
@@ -32,10 +31,7 @@ func newRouter() http.Handler {
 	getRouter.PathPrefix("/").HandlerFunc(handler.Handler)
 
 	r.PathPrefix("/").HandlerFunc(handler.Handler)
-
-	n := negroni.Classic()
-	n.UseHandler(r)
-	return n
+	return r
 }
 
 func main() {
