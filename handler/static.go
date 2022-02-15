@@ -7,12 +7,12 @@ import (
 
 func StaticMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := TrafficMiddleware(next)
 		if staticCacheClient != nil {
 			ctx := context.WithValue(context.Background(), cacheClientCtxKey, staticCacheClient)
 			r = r.Clone(ctx)
-			CacheMiddleware(next).ServeHTTP(w, r)
-			return
+			handler = CacheMiddleware(handler)
 		}
-		next.ServeHTTP(w, r)
+		handler.ServeHTTP(w, r)
 	})
 }

@@ -7,6 +7,7 @@ import (
 
 func DynamicMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := TrafficMiddleware(next)
 		for dynamicCacheClient != nil {
 			if rangeInHeader := r.Header.Get(headerRange); rangeInHeader != "" {
 				break
@@ -15,11 +16,10 @@ func DynamicMiddleware(next http.Handler) http.Handler {
 				ctx := context.WithValue(context.Background(), cacheClientCtxKey, dynamicCacheClient)
 				r = r.Clone(ctx)
 				r.URL.Query().Set(headerToken, token)
-				CacheMiddleware(next).ServeHTTP(w, r)
-				return
+				handler = CacheMiddleware(handler)
 			}
 			break
 		}
-		next.ServeHTTP(w, r)
+		handler.ServeHTTP(w, r)
 	})
 }

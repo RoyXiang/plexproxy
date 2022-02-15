@@ -25,21 +25,18 @@ func newRouter() http.Handler {
 	refreshRouter.Path("/library/sections/{id}/refresh").HandlerFunc(handler.Handler)
 
 	staticRouter := r.Methods(http.MethodGet).Subrouter()
-	staticRouter.Use(handler.TrafficMiddleware)
 	staticRouter.Use(handler.StaticMiddleware)
 	staticRouter.Path("/library/metadata/{key}/art/{id}").HandlerFunc(handler.Handler)
 	staticRouter.Path("/library/metadata/{key}/thumb/{id}").HandlerFunc(handler.Handler)
 	staticRouter.Path("/photo/:/transcode").HandlerFunc(handler.Handler)
 
 	userRouter := r.Methods(http.MethodGet).Subrouter()
-	userRouter.Use(handler.TrafficMiddleware)
 	userRouter.Use(handler.UserMiddleware)
 	userRouter.PathPrefix("/library/collections/").HandlerFunc(handler.Handler)
 	userRouter.PathPrefix("/library/metadata/").HandlerFunc(handler.Handler)
 	userRouter.PathPrefix("/library/sections/").HandlerFunc(handler.Handler)
 
 	dynamicRouter := r.Methods(http.MethodGet).Subrouter()
-	dynamicRouter.Use(handler.TrafficMiddleware)
 	dynamicRouter.Use(handler.DynamicMiddleware)
 	dynamicRouter.PathPrefix("/").HandlerFunc(handler.Handler)
 
