@@ -13,12 +13,10 @@ func TrafficMiddleware(next http.Handler) http.Handler {
 		} else {
 			params := make([]string, 4)
 			params = append(params, r.Method, r.URL.RequestURI())
-			if token := r.Header.Get(headerToken); token != "" {
-				params = append(params, token)
-			} else if token = r.URL.Query().Get(headerToken); token != "" {
+			if token := getRequestParam(r, headerToken, false); token != "" {
 				params = append(params, token)
 			}
-			if rg := r.Header.Get(headerRange); rg != "" {
+			if rg := getRequestParam(r, headerToken, false); rg != "" {
 				params = append(params, rg)
 			}
 			lockKey = strings.Join(params, ":")

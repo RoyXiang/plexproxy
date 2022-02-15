@@ -3,7 +3,6 @@ package handler
 import (
 	"context"
 	"log"
-	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os"
@@ -75,23 +74,4 @@ func init() {
 	}
 
 	ml = common.NewMultipleLock()
-}
-
-func Handler(w http.ResponseWriter, r *http.Request) {
-	proxy.ServeHTTP(w, r)
-}
-
-func WebHandler(w http.ResponseWriter, r *http.Request) {
-	http.Redirect(w, r, "https://app.plex.tv/desktop", http.StatusMovedPermanently)
-}
-
-func TimelineHandler(w http.ResponseWriter, r *http.Request) {
-	if plaxtProxy != nil {
-		request := r.Clone(context.Background())
-		go func() {
-			plaxtProxy.ServeHTTP(common.NewCustomResponseWriter(), request)
-		}()
-	}
-
-	proxy.ServeHTTP(w, r)
 }
