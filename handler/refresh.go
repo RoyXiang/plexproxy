@@ -12,7 +12,7 @@ func RefreshMiddleware(next http.Handler) http.Handler {
 		lrw := negroni.NewResponseWriter(w)
 		next.ServeHTTP(lrw, r)
 
-		if lrw.Status() < http.StatusMultipleChoices {
+		if redisClient != nil && lrw.Status() < http.StatusMultipleChoices {
 			go func() {
 				mu.Lock()
 				defer mu.Unlock()
