@@ -1,6 +1,7 @@
 package handler
 
 const (
+	headerHash  = "X-Plex-Hash"
 	headerToken = "X-Plex-Token"
 	headerRange = "Range"
 

@@ -1,13 +1,28 @@
 package handler
 
 import (
-	"fmt"
 	"net/http"
+	"strings"
 )
 
 func TrafficMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		lockKey := fmt.Sprintf("%s:%s", r.Method, r.URL.RequestURI())
+		var lockKey string
+		if hash := r.Header.Get(headerHash); hash != "" {
+			lockKey = hash
+		} else {
+			params := make([]string, 4)
+			params = append(params, r.Method, r.URL.RequestURI())
+			if token := r.Header.Get(headerToken); token != "" {
+				params = append(params, token)
+			} else if token = r.URL.Query().Get(headerToken); token != "" {
+				params = append(params, token)
+			}
+			if rg := r.Header.Get(headerRange); rg != "" {
+				params = append(params, rg)
+			}
+			lockKey = strings.Join(params, ":")
+		}
 		ml.Lock(lockKey)
 		defer ml.Unlock(lockKey)
 
