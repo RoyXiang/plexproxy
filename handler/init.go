@@ -39,11 +39,13 @@ func init() {
 		log.Fatalln("Please ensure PLEX_BASEURL is a valid URL")
 	}
 	proxy = httputil.NewSingleHostReverseProxy(u)
+	proxy.FlushInterval = -1
 
 	plaxtBaseUrl := os.Getenv("PLAXT_BASEURL")
 	if plaxtBaseUrl != "" {
 		if u, err := url.Parse(plaxtBaseUrl); err == nil {
 			plaxtProxy = httputil.NewSingleHostReverseProxy(u)
+			plaxtProxy.FlushInterval = -1
 		}
 	}
 
