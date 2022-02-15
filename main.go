@@ -10,18 +10,41 @@ import (
 
 	"github.com/RoyXiang/plexproxy/handler"
 	"github.com/gorilla/mux"
+	"github.com/urfave/negroni"
 )
 
-func main() {
+func newRouter() http.Handler {
 	r := mux.NewRouter()
+
+	refreshRouter := r.Methods(http.MethodPut).Subrouter()
+	refreshRouter.Use(handler.RefreshMiddleware)
+	refreshRouter.Path("/library/sections/{id}/refresh").HandlerFunc(handler.Handler)
+
+	metadataRouter := r.Methods(http.MethodGet).Subrouter()
+	metadataRouter.Use(handler.TrafficMiddleware)
+	metadataRouter.Use(handler.CacheMiddleware)
+	metadataRouter.PathPrefix("/library/collections/").HandlerFunc(handler.Handler)
+	metadataRouter.PathPrefix("/library/metadata/").HandlerFunc(handler.Handler)
+	metadataRouter.PathPrefix("/library/sections/").HandlerFunc(handler.Handler)
+
+	getRouter := r.Methods(http.MethodGet).Subrouter()
+	getRouter.Use(handler.TrafficMiddleware)
+	getRouter.PathPrefix("/").HandlerFunc(handler.Handler)
+
 	r.PathPrefix("/").HandlerFunc(handler.Handler)
 
+	n := negroni.Classic()
+	n.UseHandler(r)
+	return n
+}
+
+func main() {
 	srv := &http.Server{
 		Addr:         "0.0.0.0:5000",
 		WriteTimeout: time.Second * 15,
 		ReadTimeout:  time.Second * 15,
 		IdleTimeout:  time.Second * 60,
-		Handler:      r,
+		Handler:      newRouter(),
 	}
 
 	go func() {
