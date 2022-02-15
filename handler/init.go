@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"net/http/httputil"
@@ -19,8 +20,10 @@ var (
 	redisClient *redis.Client
 
 	cacheClientCtxKey  = ctxKeyType{}
+	cachePrefixCtxKey  = ctxKeyType{}
 	userCacheClient    *cache.Client
 	dynamicCacheClient *cache.Client
+	staticCacheClient  *cache.Client
 
 	mu sync.RWMutex
 	ml common.MultipleLock
@@ -42,14 +45,23 @@ func init() {
 		options, err := redis.ParseURL(redisUrl)
 		if err == nil {
 			redisClient = redis.NewClient(options)
-			adapter := NewCacheAdapter(redisClient)
+
+			dynamicCtx := context.WithValue(context.Background(), cachePrefixCtxKey, cachePrefixDynamic)
+			dynamicAdapter := NewCacheAdapter(redisClient, dynamicCtx)
 			userCacheClient, _ = cache.NewClient(
-				cache.ClientWithAdapter(adapter),
+				cache.ClientWithAdapter(dynamicAdapter),
 				cache.ClientWithTTL(time.Hour*24),
 			)
 			dynamicCacheClient, _ = cache.NewClient(
-				cache.ClientWithAdapter(adapter),
+				cache.ClientWithAdapter(dynamicAdapter),
 				cache.ClientWithTTL(time.Second*5),
+			)
+
+			staticCtx := context.WithValue(context.Background(), cachePrefixCtxKey, cachePrefixStatic)
+			staticAdapter := NewCacheAdapter(redisClient, staticCtx)
+			staticCacheClient, _ = cache.NewClient(
+				cache.ClientWithAdapter(staticAdapter),
+				cache.ClientWithTTL(time.Hour*24*7),
 			)
 		}
 	}

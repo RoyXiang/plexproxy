@@ -17,7 +17,8 @@ func RefreshMiddleware(next http.Handler) http.Handler {
 				mu.Lock()
 				defer mu.Unlock()
 
-				_ = redisClient.FlushDB(context.Background()).Err()
+				cmd := redisClient.Eval(context.Background(), redisScriptRemoveAllWithPrefix, []string{}, cachePrefixDynamic)
+				_ = cmd.Err()
 			}()
 		}
 	})
