@@ -24,7 +24,24 @@ func getRequestParam(r *http.Request, key string, delete bool) string {
 	return result
 }
 
+func (w *fakeCloseReadCloser) Close() error {
+	return nil
+}
+
+func (w *fakeCloseReadCloser) RealClose() error {
+	if w.ReadCloser == nil {
+		return nil
+	}
+	return w.ReadCloser.Close()
+}
+
 func Handler(w http.ResponseWriter, r *http.Request) {
+	if r.Body != nil {
+		r.Body = &fakeCloseReadCloser{r.Body}
+		defer func() {
+			_ = r.Body.(*fakeCloseReadCloser).RealClose()
+		}()
+	}
 	proxy.ServeHTTP(w, r)
 }
 
