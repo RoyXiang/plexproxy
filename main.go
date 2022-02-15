@@ -27,7 +27,6 @@ func newRouter() http.Handler {
 	staticRouter := r.Methods(http.MethodGet).Subrouter()
 	staticRouter.Use(handler.TrafficMiddleware)
 	staticRouter.Use(handler.StaticMiddleware)
-	staticRouter.Use(handler.CacheMiddleware)
 	staticRouter.Path("/library/metadata/{key}/art/{id}").HandlerFunc(handler.Handler)
 	staticRouter.Path("/library/metadata/{key}/thumb/{id}").HandlerFunc(handler.Handler)
 	staticRouter.Path("/photo/:/transcode").HandlerFunc(handler.Handler)
@@ -35,7 +34,6 @@ func newRouter() http.Handler {
 	userRouter := r.Methods(http.MethodGet).Subrouter()
 	userRouter.Use(handler.TrafficMiddleware)
 	userRouter.Use(handler.UserMiddleware)
-	userRouter.Use(handler.CacheMiddleware)
 	userRouter.PathPrefix("/library/collections/").HandlerFunc(handler.Handler)
 	userRouter.PathPrefix("/library/metadata/").HandlerFunc(handler.Handler)
 	userRouter.PathPrefix("/library/sections/").HandlerFunc(handler.Handler)
@@ -43,7 +41,6 @@ func newRouter() http.Handler {
 	dynamicRouter := r.Methods(http.MethodGet).Subrouter()
 	dynamicRouter.Use(handler.TrafficMiddleware)
 	dynamicRouter.Use(handler.DynamicMiddleware)
-	dynamicRouter.Use(handler.CacheMiddleware)
 	dynamicRouter.PathPrefix("/").HandlerFunc(handler.Handler)
 
 	r.PathPrefix("/").HandlerFunc(handler.Handler)

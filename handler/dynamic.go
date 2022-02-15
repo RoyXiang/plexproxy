@@ -14,6 +14,6 @@ func DynamicMiddleware(next http.Handler) http.Handler {
 				r.URL.Query().Set(headerToken, token)
 			}
 		}
-		next.ServeHTTP(w, r)
+		CacheMiddleware(next).ServeHTTP(w, r)
 	})
 }
