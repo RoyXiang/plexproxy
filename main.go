@@ -16,6 +16,7 @@ func newRouter() http.Handler {
 	r := mux.NewRouter()
 
 	r.Methods(http.MethodGet).PathPrefix("/web/").HandlerFunc(handler.WebHandler)
+	r.Path("/:/timeline").HandlerFunc(handler.TimelineHandler)
 
 	refreshRouter := r.Methods(http.MethodPut).Subrouter()
 	refreshRouter.Use(handler.RefreshMiddleware)

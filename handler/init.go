@@ -17,6 +17,7 @@ import (
 
 var (
 	proxy       *httputil.ReverseProxy
+	plaxtProxy  *httputil.ReverseProxy
 	redisClient *redis.Client
 
 	cacheClientCtxKey  = ctxKeyType{}
@@ -39,6 +40,13 @@ func init() {
 		log.Fatalln("Please ensure PLEX_BASEURL is a valid URL")
 	}
 	proxy = httputil.NewSingleHostReverseProxy(u)
+
+	plaxtBaseUrl := os.Getenv("PLAXT_BASEURL")
+	if plaxtBaseUrl != "" {
+		if u, err := url.Parse(plaxtBaseUrl); err == nil {
+			plaxtProxy = httputil.NewSingleHostReverseProxy(u)
+		}
+	}
 
 	redisUrl := os.Getenv("REDIS_URL")
 	if redisUrl != "" {
@@ -75,4 +83,15 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 
 func WebHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "https://app.plex.tv/desktop", http.StatusMovedPermanently)
+}
+
+func TimelineHandler(w http.ResponseWriter, r *http.Request) {
+	if plaxtProxy != nil {
+		request := r.Clone(context.Background())
+		go func() {
+			plaxtProxy.ServeHTTP(common.NewCustomResponseWriter(), request)
+		}()
+	}
+
+	proxy.ServeHTTP(w, r)
 }
