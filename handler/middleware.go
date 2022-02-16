@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -31,8 +32,15 @@ func loggingMiddleware(next http.Handler) http.Handler {
 				_ = r.Body.(*fakeCloseReadCloser).RealClose()
 			}()
 		}
-		log.Printf("%s %s", r.Method, r.URL.RequestURI())
-		next.ServeHTTP(w, r)
+
+		recovery := negroni.NewRecovery()
+		logger := &negroni.Logger{ALogger: log.New(os.Stdout, "", 0)}
+		logger.SetDateFormat(negroni.LoggerDefaultDateFormat)
+		logger.SetFormat(negroni.LoggerDefaultFormat)
+
+		n := negroni.New(recovery, logger)
+		n.UseHandler(next)
+		n.ServeHTTP(w, r)
 	})
 }
 
