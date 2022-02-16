@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+
+	"github.com/gorilla/mux"
 )
 
 func getRequestParam(r *http.Request, key string, delete bool) string {
@@ -46,15 +48,48 @@ func (w *mockHTTPRespWriter) Read(_ []byte) (int, error) {
 	return 0, fmt.Errorf("mockHTTPRespWriter doesn't implement io.Reader")
 }
 
-func Handler(w http.ResponseWriter, r *http.Request) {
+func NewRouter() http.Handler {
+	r := mux.NewRouter()
+	r.Use(loggingMiddleware)
+
+	r.Methods(http.MethodGet).PathPrefix("/web/").HandlerFunc(webHandler)
+	r.Path("/:/eventsource/notifications").HandlerFunc(handler)
+	r.Path("/:/timeline").HandlerFunc(timelineHandler)
+	r.Path("/:/websockets/notifications").HandlerFunc(handler)
+
+	refreshRouter := r.Methods(http.MethodPut).Subrouter()
+	refreshRouter.Use(refreshMiddleware)
+	refreshRouter.Path("/library/sections/{id}/refresh").HandlerFunc(handler)
+
+	staticRouter := r.Methods(http.MethodGet).Subrouter()
+	staticRouter.Use(staticMiddleware)
+	staticRouter.Path("/library/metadata/{key}/art/{id}").HandlerFunc(handler)
+	staticRouter.Path("/library/metadata/{key}/thumb/{id}").HandlerFunc(handler)
+	staticRouter.Path("/photo/:/transcode").HandlerFunc(handler)
+
+	userRouter := r.Methods(http.MethodGet).Subrouter()
+	userRouter.Use(userMiddleware)
+	userRouter.PathPrefix("/library/collections/").HandlerFunc(handler)
+	userRouter.PathPrefix("/library/metadata/").HandlerFunc(handler)
+	userRouter.PathPrefix("/library/sections/").HandlerFunc(handler)
+
+	dynamicRouter := r.Methods(http.MethodGet).Subrouter()
+	dynamicRouter.Use(dynamicMiddleware)
+	dynamicRouter.PathPrefix("/").HandlerFunc(handler)
+
+	r.PathPrefix("/").HandlerFunc(handler)
+	return r
+}
+
+func handler(w http.ResponseWriter, r *http.Request) {
 	proxy.ServeHTTP(w, r)
 }
 
-func WebHandler(w http.ResponseWriter, r *http.Request) {
+func webHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "https://app.plex.tv/desktop", http.StatusMovedPermanently)
 }
 
-func TimelineHandler(w http.ResponseWriter, r *http.Request) {
+func timelineHandler(w http.ResponseWriter, r *http.Request) {
 	if plaxtProxy != nil {
 		request := r.Clone(context.Background())
 		go func() {
