@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"context"
 	"log"
 	"net/http/httputil"
 	"net/url"
@@ -11,7 +10,6 @@ import (
 
 	"github.com/RoyXiang/plexproxy/common"
 	"github.com/go-redis/redis/v8"
-	"github.com/victorspringer/http-cache"
 )
 
 var (
@@ -20,10 +18,9 @@ var (
 	redisClient *redis.Client
 
 	cacheClientCtxKey  = ctxKeyType{}
-	cachePrefixCtxKey  = ctxKeyType{}
-	userCacheClient    *cache.Client
-	dynamicCacheClient *cache.Client
-	staticCacheClient  *cache.Client
+	userCacheClient    *cacheClient
+	dynamicCacheClient *cacheClient
+	staticCacheClient  *cacheClient
 
 	mu sync.RWMutex
 	ml common.MultipleLock
@@ -54,24 +51,9 @@ func init() {
 		options, err := redis.ParseURL(redisUrl)
 		if err == nil {
 			redisClient = redis.NewClient(options)
-
-			dynamicCtx := context.WithValue(context.Background(), cachePrefixCtxKey, cachePrefixDynamic)
-			dynamicAdapter := NewCacheAdapter(redisClient, dynamicCtx)
-			userCacheClient, _ = cache.NewClient(
-				cache.ClientWithAdapter(dynamicAdapter),
-				cache.ClientWithTTL(time.Hour*24),
-			)
-			dynamicCacheClient, _ = cache.NewClient(
-				cache.ClientWithAdapter(dynamicAdapter),
-				cache.ClientWithTTL(time.Second*5),
-			)
-
-			staticCtx := context.WithValue(context.Background(), cachePrefixCtxKey, cachePrefixStatic)
-			staticAdapter := NewCacheAdapter(redisClient, staticCtx)
-			staticCacheClient, _ = cache.NewClient(
-				cache.ClientWithAdapter(staticAdapter),
-				cache.ClientWithTTL(time.Hour*24*7),
-			)
+			dynamicCacheClient = NewCacheClient(redisClient, cachePrefixDynamic, time.Second*5)
+			userCacheClient = NewCacheClient(redisClient, cachePrefixDynamic, time.Hour*24)
+			staticCacheClient = NewCacheClient(redisClient, cachePrefixStatic, time.Hour*24*7)
 		}
 	}
 
