@@ -2,12 +2,12 @@ package main
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"time"
 
+	"github.com/RoyXiang/plexproxy/common"
 	"github.com/RoyXiang/plexproxy/handler"
 )
 
@@ -19,10 +19,10 @@ func main() {
 
 	go func() {
 		if err := srv.ListenAndServe(); err != nil {
-			log.Println(err)
+			common.GetLogger().Println(err)
 		}
 	}()
-	log.Println("Server started on :5000")
+	common.GetLogger().Println("Server started on :5000")
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
@@ -33,6 +33,6 @@ func main() {
 	defer cancel()
 	_ = srv.Shutdown(ctx)
 
-	log.Println("Shutting down...")
+	common.GetLogger().Println("Shutting down...")
 	os.Exit(0)
 }

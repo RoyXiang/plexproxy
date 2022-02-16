@@ -3,13 +3,12 @@ package handler
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
-	"os"
-	"reflect"
 	"strings"
 
+	"github.com/RoyXiang/plexproxy/common"
+	"github.com/gorilla/handlers"
 	"github.com/urfave/negroni"
 )
 
@@ -33,24 +32,16 @@ func loggingMiddleware(next http.Handler) http.Handler {
 			}()
 		}
 
-		recovery := negroni.NewRecovery()
-		logger := &negroni.Logger{ALogger: log.New(os.Stdout, "", 0)}
-		logger.SetDateFormat(negroni.LoggerDefaultDateFormat)
-		logger.SetFormat("{{.StartTime}} | {{.Status}} | \t {{.Duration}} | {{.Method}} {{.Path}}")
-
-		n := negroni.New(recovery, logger)
-		n.UseHandler(next)
-		n.ServeHTTP(w, r)
+		handlers.CombinedLoggingHandler(common.GetLogger().Writer(), next).ServeHTTP(w, r)
 	})
 }
 
 func refreshMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		next.ServeHTTP(w, r)
+		nrw := negroni.NewResponseWriter(w)
+		next.ServeHTTP(nrw, r)
 		if redisClient != nil {
-			result := reflect.ValueOf(w).MethodByName("Status").Call([]reflect.Value{})
-			statusCode := result[0].Interface().(int)
-			if statusCode == http.StatusOK {
+			if nrw.Status() == http.StatusOK {
 				go func() {
 					mu.Lock()
 					defer mu.Unlock()

@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 
+	"github.com/RoyXiang/plexproxy/common"
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 )
 
@@ -50,10 +52,13 @@ func (w *mockHTTPRespWriter) Read(_ []byte) (int, error) {
 
 func NewRouter() http.Handler {
 	r := mux.NewRouter()
+	r.Use(handlers.RecoveryHandler(
+		handlers.RecoveryLogger(common.GetLogger()),
+		handlers.PrintRecoveryStack(true),
+	))
+	r.Use(loggingMiddleware)
 
 	defaultRouter := r.MatcherFunc(bypassStreamMatcher).Subrouter()
-	defaultRouter.Use(loggingMiddleware)
-
 	defaultRouter.Methods(http.MethodGet).PathPrefix("/web/").HandlerFunc(webHandler)
 	defaultRouter.Path("/:/timeline").HandlerFunc(timelineHandler)
 
