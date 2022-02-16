@@ -52,13 +52,13 @@ func (w *mockHTTPRespWriter) Read(_ []byte) (int, error) {
 
 func NewRouter() http.Handler {
 	r := mux.NewRouter()
-	r.Use(handlers.RecoveryHandler(
-		handlers.RecoveryLogger(common.GetLogger()),
-		handlers.PrintRecoveryStack(true),
-	))
 	r.Use(loggingMiddleware)
 
 	defaultRouter := r.MatcherFunc(bypassStreamMatcher).Subrouter()
+	defaultRouter.Use(handlers.RecoveryHandler(
+		handlers.RecoveryLogger(common.GetLogger()),
+		handlers.PrintRecoveryStack(true),
+	))
 	defaultRouter.Methods(http.MethodGet).PathPrefix("/web/").HandlerFunc(webHandler)
 	defaultRouter.Path("/:/timeline").HandlerFunc(timelineHandler)
 
