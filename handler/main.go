@@ -52,6 +52,7 @@ func (w *mockHTTPRespWriter) Read(_ []byte) (int, error) {
 
 func NewRouter() http.Handler {
 	r := mux.NewRouter()
+	r.Use(handlers.ProxyHeaders)
 	r.Use(loggingMiddleware)
 
 	defaultRouter := r.MatcherFunc(bypassStreamMatcher).Subrouter()
