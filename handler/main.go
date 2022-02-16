@@ -67,11 +67,11 @@ func NewRouter() http.Handler {
 	staticRouter.Path("/library/metadata/{key}/thumb/{id}").HandlerFunc(handler)
 	staticRouter.Path("/photo/:/transcode").HandlerFunc(handler)
 
-	userRouter := r.Methods(http.MethodGet).Subrouter()
+	userRouter := r.Methods(http.MethodGet).PathPrefix("/library").Subrouter()
 	userRouter.Use(userMiddleware)
-	userRouter.PathPrefix("/library/collections/").HandlerFunc(handler)
-	userRouter.PathPrefix("/library/metadata/").HandlerFunc(handler)
-	userRouter.PathPrefix("/library/sections/").HandlerFunc(handler)
+	userRouter.PathPrefix("/collections/").HandlerFunc(handler)
+	userRouter.PathPrefix("/metadata/").HandlerFunc(handler)
+	userRouter.PathPrefix("/sections/").HandlerFunc(handler)
 
 	dynamicRouter := r.Methods(http.MethodGet).Subrouter()
 	dynamicRouter.Use(dynamicMiddleware)
