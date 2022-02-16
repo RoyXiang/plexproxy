@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 )
 
@@ -29,8 +30,7 @@ func getRequestParam(r *http.Request, key string, delete bool) string {
 
 func NewRouter() http.Handler {
 	r := mux.NewRouter()
-	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
+	r.Use(handlers.ProxyHeaders)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 

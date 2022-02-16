@@ -10,30 +10,6 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-func (w *fakeCloseReadCloser) Close() error {
-	return nil
-}
-
-func (w *fakeCloseReadCloser) RealClose() error {
-	if w.ReadCloser == nil {
-		return nil
-	}
-	return w.ReadCloser.Close()
-}
-
-func loggingMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Body != nil {
-			r.Body = &fakeCloseReadCloser{r.Body}
-			defer func() {
-				_ = r.Body.(*fakeCloseReadCloser).RealClose()
-			}()
-		}
-
-		middleware.Logger(next).ServeHTTP(w, r)
-	})
-}
-
 func refreshMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		next.ServeHTTP(w, r)
