@@ -49,28 +49,30 @@ func (w *mockHTTPRespWriter) Read(_ []byte) (int, error) {
 
 func NewRouter() http.Handler {
 	r := mux.NewRouter()
-	r.Use(loggingMiddleware)
 
-	r.Methods(http.MethodGet).PathPrefix("/web/").HandlerFunc(webHandler)
-	r.Path("/:/timeline").HandlerFunc(timelineHandler)
+	defaultRouter := r.MatcherFunc(bypassStreamMatcher).Subrouter()
+	defaultRouter.Use(loggingMiddleware)
 
-	refreshRouter := r.PathPrefix("/library/sections").Subrouter()
+	defaultRouter.Methods(http.MethodGet).PathPrefix("/web/").HandlerFunc(webHandler)
+	defaultRouter.Path("/:/timeline").HandlerFunc(timelineHandler)
+
+	refreshRouter := defaultRouter.PathPrefix("/library/sections").Subrouter()
 	refreshRouter.Use(refreshMiddleware)
 	refreshRouter.Path("/{id}/refresh").HandlerFunc(handler)
 
-	staticRouter := r.Methods(http.MethodGet).Subrouter()
+	staticRouter := defaultRouter.Methods(http.MethodGet).Subrouter()
 	staticRouter.Use(staticMiddleware)
 	staticRouter.Path("/library/metadata/{key}/art/{id}").HandlerFunc(handler)
 	staticRouter.Path("/library/metadata/{key}/thumb/{id}").HandlerFunc(handler)
 	staticRouter.Path("/photo/:/transcode").HandlerFunc(handler)
 
-	userRouter := r.Methods(http.MethodGet).PathPrefix("/library").Subrouter()
+	userRouter := defaultRouter.Methods(http.MethodGet).PathPrefix("/library").Subrouter()
 	userRouter.Use(userMiddleware)
 	userRouter.PathPrefix("/collections/").HandlerFunc(handler)
 	userRouter.PathPrefix("/metadata/").HandlerFunc(handler)
 	userRouter.PathPrefix("/sections/").HandlerFunc(handler)
 
-	dynamicRouter := r.Methods(http.MethodGet).MatcherFunc(bypassDynamicMatcher).Subrouter()
+	dynamicRouter := defaultRouter.Methods(http.MethodGet).Subrouter()
 	dynamicRouter.Use(dynamicMiddleware)
 	dynamicRouter.PathPrefix("/").HandlerFunc(handler)
 

@@ -7,7 +7,7 @@ import (
 	"github.com/gorilla/mux"
 )
 
-func bypassDynamicMatcher(r *http.Request, _ *mux.RouteMatch) bool {
+func bypassStreamMatcher(r *http.Request, _ *mux.RouteMatch) bool {
 	if rangeInHeader := r.Header.Get(headerRange); rangeInHeader != "" {
 		return false
 	}
