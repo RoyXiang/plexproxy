@@ -36,7 +36,7 @@ func loggingMiddleware(next http.Handler) http.Handler {
 		recovery := negroni.NewRecovery()
 		logger := &negroni.Logger{ALogger: log.New(os.Stdout, "", 0)}
 		logger.SetDateFormat(negroni.LoggerDefaultDateFormat)
-		logger.SetFormat(negroni.LoggerDefaultFormat)
+		logger.SetFormat("{{.StartTime}} | {{.Status}} | \t {{.Duration}} | {{.Method}} {{.Path}}")
 
 		n := negroni.New(recovery, logger)
 		n.UseHandler(next)
