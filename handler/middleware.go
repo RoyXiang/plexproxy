@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"path/filepath"
 	"strings"
 
 	"github.com/urfave/negroni"
@@ -108,12 +109,14 @@ func userMiddleware(next http.Handler) http.Handler {
 func dynamicMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handler := trafficMiddleware(next)
+	cache:
 		for dynamicCacheClient != nil {
 			if rangeInHeader := r.Header.Get(headerRange); rangeInHeader != "" {
 				break
 			}
-			if strings.HasSuffix(r.URL.EscapedPath(), ".m3u8") {
-				break
+			switch filepath.Ext(r.URL.EscapedPath()) {
+			case ".m3u8", ".mkv", ".mp4", ".ts":
+				break cache
 			}
 			if token := r.Header.Get(headerToken); token != "" {
 				ctx := context.WithValue(context.Background(), cacheClientCtxKey, dynamicCacheClient)
