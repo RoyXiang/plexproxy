@@ -112,6 +112,9 @@ func dynamicMiddleware(next http.Handler) http.Handler {
 			if rangeInHeader := r.Header.Get(headerRange); rangeInHeader != "" {
 				break
 			}
+			if strings.HasSuffix(r.URL.EscapedPath(), ".m3u8") {
+				break
+			}
 			if token := r.Header.Get(headerToken); token != "" {
 				ctx := context.WithValue(context.Background(), cacheClientCtxKey, dynamicCacheClient)
 				r = r.Clone(ctx)
