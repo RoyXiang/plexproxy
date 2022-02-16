@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 
 	"github.com/urfave/negroni"
@@ -46,20 +47,22 @@ func loggingMiddleware(next http.Handler) http.Handler {
 
 func refreshMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		lrw := negroni.NewResponseWriter(w)
-		next.ServeHTTP(lrw, r)
+		next.ServeHTTP(w, r)
+		if redisClient != nil {
+			result := reflect.ValueOf(w).MethodByName("Status").Call([]reflect.Value{})
+			statusCode := result[0].Interface().(int)
+			if statusCode == http.StatusOK {
+				go func() {
+					mu.Lock()
+					defer mu.Unlock()
 
-		if redisClient != nil && lrw.Status() < http.StatusMultipleChoices {
-			go func() {
-				mu.Lock()
-				defer mu.Unlock()
-
-				ctx := context.Background()
-				keys := redisClient.Keys(ctx, fmt.Sprintf("%s*", cachePrefixDynamic)).Val()
-				if len(keys) > 0 {
-					redisClient.Del(ctx, keys...).Val()
-				}
-			}()
+					ctx := context.Background()
+					keys := redisClient.Keys(ctx, fmt.Sprintf("%s*", cachePrefixDynamic)).Val()
+					if len(keys) > 0 {
+						redisClient.Del(ctx, keys...).Val()
+					}
+				}()
+			}
 		}
 	})
 }
