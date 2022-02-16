@@ -121,26 +121,20 @@ func trafficMiddleware(next http.Handler) http.Handler {
 func staticMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), cacheClientCtxKey, staticCacheClient)
-		r = r.Clone(ctx)
-
-		trafficMiddleware(next).ServeHTTP(w, r)
+		trafficMiddleware(next).ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
 func userMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), cacheClientCtxKey, userCacheClient)
-		r = r.Clone(ctx)
-
-		trafficMiddleware(next).ServeHTTP(w, r)
+		trafficMiddleware(next).ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
 func dynamicMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), cacheClientCtxKey, dynamicCacheClient)
-		r = r.Clone(ctx)
-
-		trafficMiddleware(next).ServeHTTP(w, r)
+		trafficMiddleware(next).ServeHTTP(w, r.WithContext(ctx))
 	})
 }
