@@ -7,9 +7,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/RoyXiang/plexproxy/common"
-	"github.com/gorilla/handlers"
-	"github.com/urfave/negroni"
+	"github.com/go-chi/chi/v5/middleware"
 )
 
 func (w *fakeCloseReadCloser) Close() error {
@@ -32,27 +30,24 @@ func loggingMiddleware(next http.Handler) http.Handler {
 			}()
 		}
 
-		handlers.CombinedLoggingHandler(common.GetLogger().Writer(), next).ServeHTTP(w, r)
+		middleware.Logger(next).ServeHTTP(w, r)
 	})
 }
 
 func refreshMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		nrw := negroni.NewResponseWriter(w)
-		next.ServeHTTP(nrw, r)
-		if redisClient != nil {
-			if nrw.Status() == http.StatusOK {
-				go func() {
-					mu.Lock()
-					defer mu.Unlock()
+		next.ServeHTTP(w, r)
+		if redisClient != nil && w.(middleware.WrapResponseWriter).Status() == http.StatusOK {
+			go func() {
+				mu.Lock()
+				defer mu.Unlock()
 
-					ctx := context.Background()
-					keys := redisClient.Keys(ctx, fmt.Sprintf("%s*", cachePrefixDynamic)).Val()
-					if len(keys) > 0 {
-						redisClient.Del(ctx, keys...).Val()
-					}
-				}()
-			}
+				ctx := context.Background()
+				keys := redisClient.Keys(ctx, fmt.Sprintf("%s*", cachePrefixDynamic)).Val()
+				if len(keys) > 0 {
+					redisClient.Del(ctx, keys...).Val()
+				}
+			}()
 		}
 	})
 }

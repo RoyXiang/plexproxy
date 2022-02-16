@@ -6,8 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 
-	"github.com/RoyXiang/plexproxy/common"
-	"github.com/gorilla/handlers"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/gorilla/mux"
 )
 
@@ -30,14 +29,12 @@ func getRequestParam(r *http.Request, key string, delete bool) string {
 
 func NewRouter() http.Handler {
 	r := mux.NewRouter()
-	r.Use(handlers.ProxyHeaders)
-	r.Use(loggingMiddleware)
+	r.Use(middleware.RequestID)
+	r.Use(middleware.RealIP)
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
 
 	defaultRouter := r.MatcherFunc(bypassStreamMatcher).Subrouter()
-	defaultRouter.Use(handlers.RecoveryHandler(
-		handlers.RecoveryLogger(common.GetLogger()),
-		handlers.PrintRecoveryStack(true),
-	))
 	defaultRouter.Methods(http.MethodGet).PathPrefix("/web/").HandlerFunc(webHandler)
 	defaultRouter.Path("/:/timeline").HandlerFunc(timelineHandler)
 	defaultRouter.Path("/video/:/transcode/universal/decision").HandlerFunc(decisionHandler)
