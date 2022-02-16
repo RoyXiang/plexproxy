@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -27,28 +26,6 @@ func getRequestParam(r *http.Request, key string, delete bool) string {
 		result = value
 	}
 	return result
-}
-
-func newMockHTTPRespWriter() *mockHTTPRespWriter {
-	return &mockHTTPRespWriter{
-		httptest.NewRecorder(),
-	}
-}
-
-func (w *mockHTTPRespWriter) WriteResponse() error {
-	return nil
-}
-
-func (w *mockHTTPRespWriter) WriteRespHeaders(status int, header http.Header) error {
-	w.WriteHeader(status)
-	for header, val := range header {
-		w.Header()[header] = val
-	}
-	return nil
-}
-
-func (w *mockHTTPRespWriter) Read(_ []byte) (int, error) {
-	return 0, fmt.Errorf("mockHTTPRespWriter doesn't implement io.Reader")
 }
 
 func NewRouter() http.Handler {
@@ -103,7 +80,7 @@ func timelineHandler(w http.ResponseWriter, r *http.Request) {
 		request := r.Clone(ctx)
 		go func() {
 			getRequestParam(request, headerToken, true)
-			plaxtProxy.ServeHTTP(newMockHTTPRespWriter(), request)
+			plaxtProxy.ServeHTTP(httptest.NewRecorder(), request)
 		}()
 	}
 
