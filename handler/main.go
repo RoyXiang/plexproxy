@@ -53,9 +53,7 @@ func NewRouter() http.Handler {
 	r.Use(loggingMiddleware)
 
 	r.Methods(http.MethodGet).PathPrefix("/web/").HandlerFunc(webHandler)
-	r.Path("/:/eventsource/notifications").HandlerFunc(handler)
 	r.Path("/:/timeline").HandlerFunc(timelineHandler)
-	r.Path("/:/websockets/notifications").HandlerFunc(handler)
 
 	refreshRouter := r.PathPrefix("/library/sections").Subrouter()
 	refreshRouter.Use(refreshMiddleware)
@@ -73,7 +71,7 @@ func NewRouter() http.Handler {
 	userRouter.PathPrefix("/metadata/").HandlerFunc(handler)
 	userRouter.PathPrefix("/sections/").HandlerFunc(handler)
 
-	dynamicRouter := r.Methods(http.MethodGet).Subrouter()
+	dynamicRouter := r.Methods(http.MethodGet).MatcherFunc(bypassDynamicMatcher).Subrouter()
 	dynamicRouter.Use(dynamicMiddleware)
 	dynamicRouter.PathPrefix("/").HandlerFunc(handler)
 

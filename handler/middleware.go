@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 	"reflect"
 	"strings"
 
@@ -120,22 +119,11 @@ func userMiddleware(next http.Handler) http.Handler {
 func dynamicMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handler := trafficMiddleware(next)
-	cache:
-		for dynamicCacheClient != nil {
-			if rangeInHeader := r.Header.Get(headerRange); rangeInHeader != "" {
-				break
-			}
-			switch filepath.Ext(r.URL.EscapedPath()) {
-			case ".m3u8", ".mkv", ".mp4", ".ts":
-				break cache
-			}
-			if token := r.Header.Get(headerToken); token != "" {
-				ctx := context.WithValue(context.Background(), cacheClientCtxKey, dynamicCacheClient)
-				r = r.Clone(ctx)
-				r.URL.Query().Set(headerToken, token)
-				handler = cacheMiddleware(handler)
-			}
-			break
+		if token := r.Header.Get(headerToken); token != "" {
+			ctx := context.WithValue(context.Background(), cacheClientCtxKey, dynamicCacheClient)
+			r = r.Clone(ctx)
+			r.URL.Query().Set(headerToken, token)
+			handler = cacheMiddleware(handler)
 		}
 		handler.ServeHTTP(w, r)
 	})
