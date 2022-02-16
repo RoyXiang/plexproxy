@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -90,7 +91,8 @@ func webHandler(w http.ResponseWriter, r *http.Request) {
 
 func timelineHandler(w http.ResponseWriter, r *http.Request) {
 	if plaxtProxy != nil {
-		request := r.Clone(r.Context())
+		ctx := context.WithValue(context.Background(), http.ServerContextKey, r.Context().Value(http.ServerContextKey))
+		request := r.Clone(ctx)
 		go func() {
 			getRequestParam(request, headerToken, true)
 			plaxtProxy.ServeHTTP(newMockHTTPRespWriter(), request)
