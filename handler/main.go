@@ -57,9 +57,9 @@ func NewRouter() http.Handler {
 	r.Path("/:/timeline").HandlerFunc(timelineHandler)
 	r.Path("/:/websockets/notifications").HandlerFunc(handler)
 
-	refreshRouter := r.Methods(http.MethodPut).Subrouter()
+	refreshRouter := r.PathPrefix("/library/sections").Subrouter()
 	refreshRouter.Use(refreshMiddleware)
-	refreshRouter.Path("/library/sections/{id}/refresh").HandlerFunc(handler)
+	refreshRouter.Path("/{id}/refresh").HandlerFunc(handler)
 
 	staticRouter := r.Methods(http.MethodGet).Subrouter()
 	staticRouter.Use(staticMiddleware)
