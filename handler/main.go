@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 
 	"github.com/RoyXiang/plexproxy/common"
 	"github.com/gorilla/handlers"
@@ -62,6 +63,7 @@ func NewRouter() http.Handler {
 	))
 	defaultRouter.Methods(http.MethodGet).PathPrefix("/web/").HandlerFunc(webHandler)
 	defaultRouter.Path("/:/timeline").HandlerFunc(timelineHandler)
+	defaultRouter.Path("/video/:/transcode/universal/decision").HandlerFunc(decisionHandler)
 
 	refreshRouter := defaultRouter.PathPrefix("/library/sections").Subrouter()
 	refreshRouter.Use(refreshMiddleware)
@@ -103,6 +105,34 @@ func timelineHandler(w http.ResponseWriter, r *http.Request) {
 			getRequestParam(request, headerToken, true)
 			plaxtProxy.ServeHTTP(newMockHTTPRespWriter(), request)
 		}()
+	}
+
+	proxy.ServeHTTP(w, r)
+}
+
+func decisionHandler(w http.ResponseWriter, r *http.Request) {
+	r.URL.Query().Set("autoAdjustQuality", "0")
+	r.URL.Query().Set("copyts", "0")
+	r.URL.Query().Set("directPlay", "1")
+	r.URL.Query().Set("directStream", "1")
+	r.URL.Query().Set("directStreamAudio", "1")
+	r.URL.Query().Set("hasMDE", "0")
+	r.URL.Query().Set("videoQuality", "100")
+	r.URL.Query().Set("videoResolution", "4096x2160")
+	r.URL.Query().Del("maxVideoBitrate")
+	r.URL.Query().Del("videoBitrate")
+
+	extraProfile := getRequestParam(r, headerExtra, true)
+	if extraProfile != "" {
+		params := strings.Split(extraProfile, "+")
+		i := 0
+		for _, value := range params {
+			if !strings.HasPrefix(value, "add-limitation") {
+				params[i] = value
+				i++
+			}
+		}
+		r.Header.Set(headerExtra, strings.Join(params[:i], "+"))
 	}
 
 	proxy.ServeHTTP(w, r)
