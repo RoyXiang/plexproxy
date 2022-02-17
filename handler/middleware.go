@@ -187,13 +187,9 @@ func cacheMiddleware(next http.Handler) http.Handler {
 			if userId == 0 {
 				return
 			}
-			accept := strings.Split(r.Header.Get(headerAccept), ",")[0]
-			if accept == "" || accept == "text/xml" {
-				accept = "application/xml"
-			}
 			params.Del(headerToken)
 			params.Set("X-Plex-User-Id", strconv.Itoa(userId))
-			params.Set(headerAccept, accept)
+			params.Set(headerAccept, getAcceptContentType(r))
 		default:
 			// invalid prefix
 			return
@@ -219,6 +215,26 @@ func getPlexUserId(token string) int {
 	}
 	redisClient.Set(ctx, cacheKey, user.ID, 0)
 	return user.ID
+}
+
+func getAcceptContentType(r *http.Request) string {
+	accept := r.Header.Get(headerAccept)
+	if accept == "" {
+		return contentTypeXml
+	}
+	fields := strings.FieldsFunc(accept, func(r rune) bool {
+		return r == ',' || r == ' '
+	})
+	for _, field := range fields {
+		if field == contentTypeAny {
+			continue
+		}
+		parts := strings.Split(field, "/")
+		if len(parts) == 2 {
+			return parts[1]
+		}
+	}
+	return contentTypeXml
 }
 
 func writeToCache(key string, resp *http.Response, ttl time.Duration) {

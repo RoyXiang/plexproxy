@@ -23,4 +23,7 @@ const (
 	cacheTtlStatic  = time.Hour
 	cacheTtlUser    = time.Minute * 30
 	cacheTtlDynamic = time.Second * 5
+
+	contentTypeAny = "*/*"
+	contentTypeXml = "xml"
 )
