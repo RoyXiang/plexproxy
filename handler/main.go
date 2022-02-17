@@ -60,6 +60,9 @@ func timelineHandler(w http.ResponseWriter, r *http.Request) {
 		request := r.Clone(ctx)
 		go func() {
 			request.Header.Del(headerToken)
+			params := request.URL.Query()
+			params.Del(headerToken)
+			request.URL.RawQuery = params.Encode()
 			plaxtProxy.ServeHTTP(httptest.NewRecorder(), request)
 		}()
 	}
