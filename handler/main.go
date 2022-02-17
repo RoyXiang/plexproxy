@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -20,10 +21,7 @@ func NewRouter() http.Handler {
 
 	r.Methods(http.MethodGet).PathPrefix("/web/").HandlerFunc(webHandler)
 	r.Path("/:/timeline").HandlerFunc(timelineHandler)
-
-	refreshRouter := r.PathPrefix("/library/sections").Subrouter()
-	refreshRouter.Use(refreshMiddleware)
-	refreshRouter.Path("/{id}/refresh").HandlerFunc(handler)
+	r.Path("/library/sections/{id}/refresh").HandlerFunc(refreshHandler)
 
 	staticRouter := r.Methods(http.MethodGet).Subrouter()
 	staticRouter.Use(staticMiddleware)
@@ -68,6 +66,22 @@ func timelineHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	proxy.ServeHTTP(w, r)
+}
+
+func refreshHandler(w http.ResponseWriter, r *http.Request) {
+	proxy.ServeHTTP(w, r)
+	if redisClient != nil && w.(middleware.WrapResponseWriter).Status() == http.StatusOK {
+		go func() {
+			mu.Lock()
+			defer mu.Unlock()
+
+			ctx := context.Background()
+			keys := redisClient.Keys(ctx, fmt.Sprintf("%s:*", cachePrefixDynamic)).Val()
+			if len(keys) > 0 {
+				redisClient.Del(ctx, keys...).Val()
+			}
+		}()
+	}
 }
 
 func decisionHandler(w http.ResponseWriter, r *http.Request) {

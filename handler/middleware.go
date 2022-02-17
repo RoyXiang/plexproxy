@@ -12,31 +12,11 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
-
-	"github.com/go-chi/chi/v5/middleware"
 )
 
 var (
 	cacheInfoCtxKey = ctxKeyType{}
 )
-
-func refreshMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		next.ServeHTTP(w, r)
-		if redisClient != nil && w.(middleware.WrapResponseWriter).Status() == http.StatusOK {
-			go func() {
-				mu.Lock()
-				defer mu.Unlock()
-
-				ctx := context.Background()
-				keys := redisClient.Keys(ctx, fmt.Sprintf("%s:*", cachePrefixDynamic)).Val()
-				if len(keys) > 0 {
-					redisClient.Del(ctx, keys...).Val()
-				}
-			}()
-		}
-	})
-}
 
 func trafficMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -136,6 +116,9 @@ func dynamicMiddleware(next http.Handler) http.Handler {
 
 func cacheMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.RLock()
+		defer mu.RUnlock()
+
 		var cacheKey string
 		ctx := context.Background()
 		info := r.Context().Value(cacheInfoCtxKey).(*cacheInfo)
