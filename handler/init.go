@@ -7,6 +7,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/DirtyCajunRice/go-plex"
 	"github.com/RoyXiang/plexproxy/common"
 	"github.com/go-redis/redis/v8"
 )
@@ -15,6 +16,7 @@ var (
 	proxy       *httputil.ReverseProxy
 	plaxtProxy  *httputil.ReverseProxy
 	redisClient *redis.Client
+	plexApp     *plex.App
 
 	mu sync.RWMutex
 	ml common.MultipleLock
@@ -47,6 +49,8 @@ func init() {
 			redisClient = redis.NewClient(options)
 		}
 	}
+
+	plexApp = plex.New("plex-proxy")
 
 	ml = common.NewMultipleLock()
 }

@@ -12,11 +12,13 @@ const (
 	headerPageSize    = "X-Plex-Container-Size"
 	headerPageStart   = "X-Plex-Container-Start"
 	headerToken       = "X-Plex-Token"
+	headerAccept      = "Accept"
 	headerLanguage    = "Accept-Language"
 	headerRange       = "Range"
 
 	cachePrefixDynamic = "dynamic"
 	cachePrefixStatic  = "static"
+	cachePrefixPlex    = "plex"
 
 	cacheTtlStatic  = time.Hour
 	cacheTtlUser    = time.Minute * 30
