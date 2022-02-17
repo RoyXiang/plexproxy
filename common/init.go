@@ -8,5 +8,5 @@ import (
 
 func init() {
 	log.SetOutput(io.Discard)
-	logger = log.New(os.Stdout, "", 0)
+	logger = log.New(os.Stdout, "", log.LstdFlags)
 }
