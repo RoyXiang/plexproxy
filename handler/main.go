@@ -34,29 +34,28 @@ func NewRouter() http.Handler {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
-	defaultRouter := r.MatcherFunc(bypassStreamMatcher).Subrouter()
-	defaultRouter.Methods(http.MethodGet).PathPrefix("/web/").HandlerFunc(webHandler)
-	defaultRouter.Path("/:/timeline").HandlerFunc(timelineHandler)
-	defaultRouter.Path("/video/:/transcode/universal/decision").HandlerFunc(decisionHandler)
+	r.Methods(http.MethodGet).PathPrefix("/web/").HandlerFunc(webHandler)
+	r.Path("/:/timeline").HandlerFunc(timelineHandler)
 
-	refreshRouter := defaultRouter.PathPrefix("/library/sections").Subrouter()
+	refreshRouter := r.PathPrefix("/library/sections").Subrouter()
 	refreshRouter.Use(refreshMiddleware)
 	refreshRouter.Path("/{id}/refresh").HandlerFunc(handler)
 
-	staticRouter := defaultRouter.Methods(http.MethodGet).Subrouter()
+	staticRouter := r.Methods(http.MethodGet).Subrouter()
 	staticRouter.Use(staticMiddleware)
 	staticRouter.Path("/library/metadata/{key}/art/{id}").HandlerFunc(handler)
 	staticRouter.Path("/library/metadata/{key}/thumb/{id}").HandlerFunc(handler)
 	staticRouter.Path("/photo/:/transcode").HandlerFunc(handler)
 
-	userRouter := defaultRouter.Methods(http.MethodGet).PathPrefix("/library").Subrouter()
+	userRouter := r.Methods(http.MethodGet).PathPrefix("/library").Subrouter()
 	userRouter.Use(userMiddleware)
 	userRouter.PathPrefix("/collections/").HandlerFunc(handler)
 	userRouter.PathPrefix("/metadata/").HandlerFunc(handler)
 	userRouter.PathPrefix("/sections/").HandlerFunc(handler)
 
-	dynamicRouter := defaultRouter.Methods(http.MethodGet).Subrouter()
+	dynamicRouter := r.Methods(http.MethodGet).Subrouter()
 	dynamicRouter.Use(dynamicMiddleware)
+	dynamicRouter.Path("/video/:/transcode/universal/decision").HandlerFunc(decisionHandler)
 	dynamicRouter.PathPrefix("/").HandlerFunc(handler)
 
 	r.PathPrefix("/").HandlerFunc(handler)

@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"net/http/httputil"
 	"net/url"
+	"path/filepath"
 	"strings"
 
 	"github.com/go-chi/chi/v5/middleware"
@@ -43,7 +44,14 @@ func trafficMiddleware(next http.Handler) http.Handler {
 		if hash := r.Header.Get(headerHash); hash != "" {
 			lockKey = hash
 		} else {
-			lockKey = fmt.Sprintf("%s:%s", r.URL.RequestURI(), r.Header.Get(headerToken))
+			params := []string{r.URL.RequestURI()}
+			if token := r.Header.Get(headerToken); token != "" {
+				params = append(params, token)
+			}
+			if rg := r.Header.Get(headerRange); rg != "" {
+				params = append(params, rg)
+			}
+			lockKey = strings.Join(params, ":")
 		}
 		ml.Lock(lockKey)
 		defer ml.Unlock(lockKey)
@@ -129,6 +137,20 @@ func cacheMiddleware(next http.Handler) http.Handler {
 		if redisClient == nil {
 			return
 		}
+		if rangeInHeader := r.Header.Get(headerRange); rangeInHeader != "" {
+			return
+		}
+		path := r.URL.EscapedPath()
+		switch path {
+		case "/:/eventsource/notifications",
+			"/:/websockets/notifications":
+			return
+		}
+		switch filepath.Ext(path) {
+		case ".m3u8", ".mkv", ".mp4", ".ts":
+			return
+		}
+
 		shouldCache := true
 		switch info.Prefix {
 		case cachePrefixDynamic:
