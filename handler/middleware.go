@@ -96,7 +96,6 @@ func dynamicMiddleware(next http.Handler) http.Handler {
 func cacheMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var cacheKey string
-		var resp *http.Response
 		ctx := context.Background()
 		info := r.Context().Value(cacheInfoCtxKey).(*cacheInfo)
 
@@ -104,6 +103,12 @@ func cacheMiddleware(next http.Handler) http.Handler {
 			if cacheKey == "" {
 				next.ServeHTTP(w, r)
 				return
+			}
+			var resp *http.Response
+			b, err := redisClient.Get(ctx, cacheKey).Bytes()
+			if err == nil {
+				reader := bufio.NewReader(bytes.NewReader(b))
+				resp, _ = http.ReadResponse(reader, r)
 			}
 			if resp == nil {
 				nw := httptest.NewRecorder()
@@ -151,52 +156,43 @@ func cacheMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		shouldCache := true
-		switch info.Prefix {
-		case cachePrefixDynamic:
-			if token := r.Header.Get(headerToken); token != "" {
-				r.URL.Query().Set(headerToken, token)
-				if size := getRequestParam(r, headerPageSize, true); size != "" {
-					r.URL.Query().Set(headerPageSize, size)
-				}
-				if start := getRequestParam(r, headerPageStart, true); start != "" {
-					r.URL.Query().Set(headerPageStart, start)
-				}
-			} else {
-				shouldCache = false
-			}
-		case cachePrefixStatic:
-			for name := range r.URL.Query() {
-				switch {
-				case strings.HasPrefix(name, headerPlexPrefix):
-					value := getRequestParam(r, name, true)
-					r.Header.Set(name, value)
-				case name == "url":
-					value := getRequestParam(r, name, true)
-					u, _ := url.Parse(value)
-					switch u.Hostname() {
-					case "", "127.0.0.1":
-						r.URL.Query().Set(name, u.EscapedPath())
-					default:
-						r.URL.Query().Set(name, u.String())
+		params := url.Values{}
+		for name, values := range r.URL.Query() {
+			switch {
+			case name == headerPageSize, name == headerPageStart:
+				params[name] = values
+			case name == "url":
+				for _, value := range values {
+					u, err := url.Parse(value)
+					if err == nil {
+						switch u.Hostname() {
+						case "", "127.0.0.1":
+							params.Add(name, u.EscapedPath())
+						default:
+							params.Add(name, u.String())
+						}
+					} else {
+						params.Add(name, value)
 					}
 				}
+			case strings.HasPrefix(name, headerPlexPrefix):
+				break
+			default:
+				params[name] = values
 			}
-		default:
-			shouldCache = false
 		}
-		if !shouldCache {
-			return
+		for name, values := range r.Header {
+			switch name {
+			case headerPageSize, headerPageStart:
+				params[name] = values
+			case headerToken:
+				if info.Prefix == cachePrefixDynamic {
+					params[name] = values
+				}
+			}
 		}
-
-		r.URL.RawQuery = r.URL.Query().Encode()
-		cacheKey = fmt.Sprintf("%s%s", info.Prefix, r.URL.RequestURI())
-
-		b, err := redisClient.Get(ctx, cacheKey).Bytes()
-		if err != nil {
-			return
-		}
-		reader := bufio.NewReader(bytes.NewReader(b))
-		resp, _ = http.ReadResponse(reader, r)
+		request := r.Clone(ctx)
+		request.URL.RawQuery = params.Encode()
+		cacheKey = fmt.Sprintf("%s%s", info.Prefix, request.URL.RequestURI())
 	})
 }

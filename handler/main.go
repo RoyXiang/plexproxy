@@ -4,29 +4,13 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 )
-
-func getRequestParam(r *http.Request, key string, delete bool) string {
-	var result string
-	if value := r.URL.Query().Get(key); value != "" {
-		if delete {
-			r.URL.Query().Del(key)
-		}
-		result = value
-	}
-	if value := r.Header.Get(key); value != "" {
-		if delete {
-			r.Header.Del(key)
-		}
-		result = value
-	}
-	return result
-}
 
 func NewRouter() http.Handler {
 	r := mux.NewRouter()
@@ -75,7 +59,7 @@ func timelineHandler(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(context.Background(), http.ServerContextKey, r.Context().Value(http.ServerContextKey))
 		request := r.Clone(ctx)
 		go func() {
-			getRequestParam(request, headerToken, true)
+			request.Header.Del(headerToken)
 			plaxtProxy.ServeHTTP(httptest.NewRecorder(), request)
 		}()
 	}
@@ -84,18 +68,31 @@ func timelineHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func decisionHandler(w http.ResponseWriter, r *http.Request) {
-	r.URL.Query().Set("autoAdjustQuality", "0")
-	r.URL.Query().Set("copyts", "0")
-	r.URL.Query().Set("directPlay", "1")
-	r.URL.Query().Set("directStream", "1")
-	r.URL.Query().Set("directStreamAudio", "1")
-	r.URL.Query().Set("hasMDE", "0")
-	r.URL.Query().Set("videoQuality", "100")
-	r.URL.Query().Set("videoResolution", "4096x2160")
-	r.URL.Query().Del("maxVideoBitrate")
-	r.URL.Query().Del("videoBitrate")
+	var extraProfile string
 
-	extraProfile := getRequestParam(r, headerExtra, true)
+	query := url.Values{}
+	for name, values := range r.URL.Query() {
+		switch name {
+		case "copyts", "hasMDE":
+			query.Set(name, "0")
+		case "maxVideoBitrate", "videoBitrate":
+			break
+		case headerExtra:
+			extraProfile = strings.Join(values, "+")
+		default:
+			query[name] = values
+		}
+	}
+	query.Set("autoAdjustQuality", "0")
+	query.Set("directPlay", "1")
+	query.Set("directStream", "1")
+	query.Set("directStreamAudio", "1")
+	query.Set("videoQuality", "100")
+	query.Set("videoResolution", "4096x2160")
+
+	if extraProfile == "" {
+		extraProfile = r.Header.Get(headerExtra)
+	}
 	if extraProfile != "" {
 		params := strings.Split(extraProfile, "+")
 		i := 0
@@ -105,8 +102,13 @@ func decisionHandler(w http.ResponseWriter, r *http.Request) {
 				i++
 			}
 		}
-		r.Header.Set(headerExtra, strings.Join(params[:i], "+"))
+		extraProfile = strings.Join(params[:i], "+")
 	}
 
-	proxy.ServeHTTP(w, r)
+	nr := r.Clone(r.Context())
+	nr.URL.RawQuery = query.Encode()
+	if extraProfile != "" {
+		nr.Header.Set(headerExtra, extraProfile)
+	}
+	proxy.ServeHTTP(w, nr)
 }
