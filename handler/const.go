@@ -15,8 +15,8 @@ const (
 	headerLanguage    = "Accept-Language"
 	headerRange       = "Range"
 
-	cachePrefixDynamic = "dynamic:"
-	cachePrefixStatic  = "static:"
+	cachePrefixDynamic = "dynamic"
+	cachePrefixStatic  = "static"
 
 	cacheTtlStatic  = time.Hour * 24 * 7
 	cacheTtlUser    = time.Hour * 24

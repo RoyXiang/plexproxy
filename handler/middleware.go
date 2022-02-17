@@ -29,7 +29,7 @@ func refreshMiddleware(next http.Handler) http.Handler {
 				defer mu.Unlock()
 
 				ctx := context.Background()
-				keys := redisClient.Keys(ctx, fmt.Sprintf("%s*", cachePrefixDynamic)).Val()
+				keys := redisClient.Keys(ctx, fmt.Sprintf("%s:*", cachePrefixDynamic)).Val()
 				if len(keys) > 0 {
 					redisClient.Del(ctx, keys...).Val()
 				}
