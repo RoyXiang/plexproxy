@@ -34,15 +34,7 @@ func trafficMiddleware(next http.Handler) http.Handler {
 		if hash := r.Header.Get(headerHash); hash != "" {
 			lockKey = hash
 		} else {
-			params := make([]string, 4)
-			params = append(params, r.Method, r.URL.RequestURI())
-			if token := r.Header.Get(headerToken); token != "" {
-				params = append(params, token)
-			}
-			if rg := r.Header.Get(headerRange); rg != "" {
-				params = append(params, rg)
-			}
-			lockKey = strings.Join(params, ":")
+			lockKey = fmt.Sprintf("%s:%s", r.URL.RequestURI(), r.Header.Get(headerToken))
 		}
 		ml.Lock(lockKey)
 		defer ml.Unlock(lockKey)
