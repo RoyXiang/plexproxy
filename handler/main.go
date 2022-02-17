@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 
 	"github.com/go-chi/chi/v5/middleware"
@@ -15,6 +14,7 @@ import (
 func NewRouter() http.Handler {
 	r := mux.NewRouter()
 	r.Use(handlers.ProxyHeaders)
+	r.Use(trafficMiddleware)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
@@ -68,32 +68,21 @@ func timelineHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func decisionHandler(w http.ResponseWriter, r *http.Request) {
-	var extraProfile string
-
-	query := url.Values{}
-	for name, values := range r.URL.Query() {
-		switch name {
-		case "copyts", "hasMDE":
-			query.Set(name, "0")
-		case "maxVideoBitrate", "videoBitrate":
-			break
-		case headerExtra:
-			extraProfile = strings.Join(values, "+")
-		default:
-			query[name] = values
-		}
-	}
+	query := r.URL.Query()
+	query.Del("maxVideoBitrate")
+	query.Del("videoBitrate")
 	query.Set("autoAdjustQuality", "0")
+	query.Set("copyts", "0")
 	query.Set("directPlay", "1")
 	query.Set("directStream", "1")
 	query.Set("directStreamAudio", "1")
+	query.Set("hasMDE", "0")
 	query.Set("videoQuality", "100")
 	query.Set("videoResolution", "4096x2160")
 
-	if extraProfile == "" {
-		extraProfile = r.Header.Get(headerExtra)
-	}
-	if extraProfile != "" {
+	nr := r.Clone(r.Context())
+	nr.URL.RawQuery = query.Encode()
+	if extraProfile := r.Header.Get(headerExtra); extraProfile != "" {
 		params := strings.Split(extraProfile, "+")
 		i := 0
 		for _, value := range params {
@@ -102,13 +91,7 @@ func decisionHandler(w http.ResponseWriter, r *http.Request) {
 				i++
 			}
 		}
-		extraProfile = strings.Join(params[:i], "+")
-	}
-
-	nr := r.Clone(r.Context())
-	nr.URL.RawQuery = query.Encode()
-	if extraProfile != "" {
-		nr.Header.Set(headerExtra, extraProfile)
+		nr.Header.Set(headerExtra, strings.Join(params[:i], "+"))
 	}
 	proxy.ServeHTTP(w, nr)
 }

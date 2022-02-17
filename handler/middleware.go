@@ -40,23 +40,64 @@ func refreshMiddleware(next http.Handler) http.Handler {
 
 func trafficMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		headers := http.Header{}
+		params := url.Values{}
+		for name, values := range r.URL.Query() {
+			switch {
+			case name == headerPageSize, name == headerPageStart:
+				params[name] = values
+			case name == headerToken:
+				headers[name] = values
+				params[name] = values
+			case name == "url":
+				for _, value := range values {
+					u, err := url.Parse(value)
+					if err == nil {
+						switch u.Hostname() {
+						case "", "127.0.0.1":
+							params.Add(name, u.EscapedPath())
+						default:
+							params.Add(name, u.String())
+						}
+					} else {
+						params.Add(name, value)
+					}
+				}
+			case strings.HasPrefix(name, headerPlexPrefix), name == headerLanguage:
+				headers[name] = values
+			default:
+				params[name] = values
+			}
+		}
+		for name, values := range r.Header {
+			switch name {
+			case headerPageSize, headerPageStart:
+				params[name] = values
+			case headerToken:
+				headers[name] = values
+				params[name] = values
+			default:
+				headers[name] = values
+			}
+		}
+
+		nr := r.Clone(r.Context())
+		nr.Header = headers
+		nr.URL.RawQuery = params.Encode()
+
 		var lockKey string
-		if hash := r.Header.Get(headerHash); hash != "" {
+		if hash := headers.Get(headerHash); hash != "" {
 			lockKey = hash
 		} else {
-			params := []string{r.URL.RequestURI()}
-			if token := r.Header.Get(headerToken); token != "" {
-				params = append(params, token)
+			if rg := headers.Get(headerRange); rg != "" {
+				params.Set(headerRange, rg)
 			}
-			if rg := r.Header.Get(headerRange); rg != "" {
-				params = append(params, rg)
-			}
-			lockKey = strings.Join(params, ":")
+			lockKey = fmt.Sprintf("%s?%s", r.URL.EscapedPath(), params.Encode())
 		}
 		ml.Lock(lockKey)
 		defer ml.Unlock(lockKey)
 
-		cacheMiddleware(next).ServeHTTP(w, r)
+		next.ServeHTTP(w, nr)
 	})
 }
 
@@ -67,7 +108,7 @@ func staticMiddleware(next http.Handler) http.Handler {
 			Ttl:    cacheTtlStatic,
 		})
 		r = r.WithContext(ctx)
-		trafficMiddleware(next).ServeHTTP(w, r)
+		cacheMiddleware(next).ServeHTTP(w, r)
 	})
 }
 
@@ -78,7 +119,7 @@ func userMiddleware(next http.Handler) http.Handler {
 			Ttl:    cacheTtlUser,
 		})
 		r = r.WithContext(ctx)
-		trafficMiddleware(next).ServeHTTP(w, r)
+		cacheMiddleware(next).ServeHTTP(w, r)
 	})
 }
 
@@ -89,7 +130,7 @@ func dynamicMiddleware(next http.Handler) http.Handler {
 			Ttl:    cacheTtlDynamic,
 		})
 		r = r.WithContext(ctx)
-		trafficMiddleware(next).ServeHTTP(w, r)
+		cacheMiddleware(next).ServeHTTP(w, r)
 	})
 }
 
@@ -156,43 +197,14 @@ func cacheMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		params := url.Values{}
-		for name, values := range r.URL.Query() {
-			switch {
-			case name == headerPageSize, name == headerPageStart:
-				params[name] = values
-			case name == "url":
-				for _, value := range values {
-					u, err := url.Parse(value)
-					if err == nil {
-						switch u.Hostname() {
-						case "", "127.0.0.1":
-							params.Add(name, u.EscapedPath())
-						default:
-							params.Add(name, u.String())
-						}
-					} else {
-						params.Add(name, value)
-					}
-				}
-			case strings.HasPrefix(name, headerPlexPrefix):
-				break
-			default:
-				params[name] = values
-			}
+		params := r.URL.Query()
+		if info.Prefix == cachePrefixStatic {
+			params.Del(headerToken)
 		}
-		for name, values := range r.Header {
-			switch name {
-			case headerPageSize, headerPageStart:
-				params[name] = values
-			case headerToken:
-				if info.Prefix == cachePrefixDynamic {
-					params[name] = values
-				}
-			}
+		if len(params) > 0 {
+			cacheKey = fmt.Sprintf("%s?%s", r.URL.EscapedPath(), params.Encode())
+		} else {
+			cacheKey = r.URL.EscapedPath()
 		}
-		request := r.Clone(ctx)
-		request.URL.RawQuery = params.Encode()
-		cacheKey = fmt.Sprintf("%s%s", info.Prefix, request.URL.RequestURI())
 	})
 }

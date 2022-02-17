@@ -12,6 +12,7 @@ const (
 	headerPageSize    = "X-Plex-Container-Size"
 	headerPageStart   = "X-Plex-Container-Start"
 	headerToken       = "X-Plex-Token"
+	headerLanguage    = "Accept-Language"
 	headerRange       = "Range"
 
 	cachePrefixDynamic = "dynamic:"
