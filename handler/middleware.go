@@ -202,9 +202,9 @@ func cacheMiddleware(next http.Handler) http.Handler {
 			params.Del(headerToken)
 		}
 		if len(params) > 0 {
-			cacheKey = fmt.Sprintf("%s?%s", r.URL.EscapedPath(), params.Encode())
+			cacheKey = fmt.Sprintf("%s:%s?%s", info.Prefix, r.URL.EscapedPath(), params.Encode())
 		} else {
-			cacheKey = r.URL.EscapedPath()
+			cacheKey = fmt.Sprintf("%s:%s", info.Prefix, r.URL.EscapedPath())
 		}
 	})
 }
