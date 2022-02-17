@@ -91,21 +91,30 @@ func trafficMiddleware(next http.Handler) http.Handler {
 
 func staticMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := context.WithValue(r.Context(), cacheClientCtxKey, staticCacheClient)
-		trafficMiddleware(next).ServeHTTP(w, r.WithContext(ctx))
+		if staticCacheClient != nil {
+			ctx := context.WithValue(r.Context(), cacheClientCtxKey, staticCacheClient)
+			r = r.WithContext(ctx)
+		}
+		trafficMiddleware(next).ServeHTTP(w, r)
 	})
 }
 
 func userMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := context.WithValue(r.Context(), cacheClientCtxKey, userCacheClient)
-		trafficMiddleware(next).ServeHTTP(w, r.WithContext(ctx))
+		if userCacheClient != nil {
+			ctx := context.WithValue(r.Context(), cacheClientCtxKey, userCacheClient)
+			r = r.WithContext(ctx)
+		}
+		trafficMiddleware(next).ServeHTTP(w, r)
 	})
 }
 
 func dynamicMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := context.WithValue(r.Context(), cacheClientCtxKey, dynamicCacheClient)
-		trafficMiddleware(next).ServeHTTP(w, r.WithContext(ctx))
+		if dynamicCacheClient != nil {
+			ctx := context.WithValue(r.Context(), cacheClientCtxKey, dynamicCacheClient)
+			r = r.WithContext(ctx)
+		}
+		trafficMiddleware(next).ServeHTTP(w, r)
 	})
 }
