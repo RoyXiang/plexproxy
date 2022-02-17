@@ -169,13 +169,7 @@ func cacheMiddleware(next http.Handler) http.Handler {
 		if rangeInHeader := r.Header.Get(headerRange); rangeInHeader != "" {
 			return
 		}
-		path := r.URL.EscapedPath()
-		switch path {
-		case "/:/eventsource/notifications",
-			"/:/websockets/notifications":
-			return
-		}
-		switch filepath.Ext(path) {
+		switch filepath.Ext(r.URL.EscapedPath()) {
 		case ".m3u8", ".mkv", ".mp4", ".ts":
 			return
 		}

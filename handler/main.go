@@ -15,27 +15,30 @@ import (
 func NewRouter() http.Handler {
 	r := mux.NewRouter()
 	r.Use(handlers.ProxyHeaders)
-	r.Use(trafficMiddleware)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
 	r.Methods(http.MethodGet).PathPrefix("/web/").HandlerFunc(webHandler)
 	r.Path("/:/timeline").HandlerFunc(timelineHandler)
 	r.Path("/library/sections/{id}/refresh").HandlerFunc(refreshHandler)
+	r.PathPrefix("/:/").HandlerFunc(handler)
 
-	staticRouter := r.Methods(http.MethodGet).Subrouter()
+	getRouter := r.Methods(http.MethodGet).Subrouter()
+	getRouter.Use(trafficMiddleware)
+
+	staticRouter := getRouter.NewRoute().Subrouter()
 	staticRouter.Use(staticMiddleware)
 	staticRouter.Path("/library/metadata/{key}/art/{id}").HandlerFunc(handler)
 	staticRouter.Path("/library/metadata/{key}/thumb/{id}").HandlerFunc(handler)
 	staticRouter.Path("/photo/:/transcode").HandlerFunc(handler)
 
-	userRouter := r.Methods(http.MethodGet).PathPrefix("/library").Subrouter()
+	userRouter := getRouter.PathPrefix("/library").Subrouter()
 	userRouter.Use(userMiddleware)
 	userRouter.PathPrefix("/collections/").HandlerFunc(handler)
 	userRouter.PathPrefix("/metadata/").HandlerFunc(handler)
 	userRouter.PathPrefix("/sections/").HandlerFunc(handler)
 
-	dynamicRouter := r.Methods(http.MethodGet).Subrouter()
+	dynamicRouter := getRouter.NewRoute().Subrouter()
 	dynamicRouter.Use(dynamicMiddleware)
 	dynamicRouter.Path("/video/:/transcode/universal/decision").HandlerFunc(decisionHandler)
 	dynamicRouter.PathPrefix("/").HandlerFunc(handler)
