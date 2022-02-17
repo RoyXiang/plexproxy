@@ -187,8 +187,8 @@ func cacheMiddleware(next http.Handler) http.Handler {
 			if userId == 0 {
 				return
 			}
-			accept := r.Header.Get(headerAccept)
-			if accept == "" {
+			accept := strings.Split(r.Header.Get(headerAccept), ",")[0]
+			if accept == "" || accept == "text/xml" {
 				accept = "application/xml"
 			}
 			params.Del(headerToken)
