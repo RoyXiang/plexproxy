@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 var (
@@ -140,19 +141,17 @@ func cacheMiddleware(next http.Handler) http.Handler {
 				resp = nw.Result()
 				defer func() {
 					_, _ = w.Write(nw.Body.Bytes())
-
 					if resp.StatusCode == http.StatusOK {
-						b, err := httputil.DumpResponse(resp, true)
-						if err != nil {
-							return
-						}
-						redisClient.Set(ctx, cacheKey, b, info.Ttl)
+						writeToCache(cacheKey, resp, info.Ttl)
 					}
 				}()
 				w.Header().Set(headerCacheStatus, "MISS")
 			} else {
 				defer func() {
 					_, _ = io.Copy(w, resp.Body)
+					if info.Prefix == cachePrefixStatic {
+						writeToCache(cacheKey, resp, info.Ttl)
+					}
 				}()
 				w.Header().Set(headerCacheStatus, "HIT")
 			}
@@ -184,4 +183,12 @@ func cacheMiddleware(next http.Handler) http.Handler {
 			cacheKey = fmt.Sprintf("%s:%s", info.Prefix, r.URL.EscapedPath())
 		}
 	})
+}
+
+func writeToCache(key string, resp *http.Response, ttl time.Duration) {
+	b, err := httputil.DumpResponse(resp, true)
+	if err != nil {
+		return
+	}
+	redisClient.Set(context.Background(), key, b, ttl)
 }

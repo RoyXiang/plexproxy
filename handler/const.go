@@ -18,7 +18,7 @@ const (
 	cachePrefixDynamic = "dynamic"
 	cachePrefixStatic  = "static"
 
-	cacheTtlStatic  = time.Hour * 24 * 7
-	cacheTtlUser    = time.Hour * 24
+	cacheTtlStatic  = time.Hour
+	cacheTtlUser    = time.Minute * 30
 	cacheTtlDynamic = time.Second * 5
 )
