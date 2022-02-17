@@ -124,6 +124,7 @@ func cacheMiddleware(next http.Handler) http.Handler {
 		var cacheKey string
 		ctx := context.Background()
 		info := r.Context().Value(cacheInfoCtxKey).(*cacheInfo)
+		cacheTtl := info.Ttl
 
 		defer func() {
 			if cacheKey == "" {
@@ -143,7 +144,7 @@ func cacheMiddleware(next http.Handler) http.Handler {
 				defer func() {
 					_, _ = w.Write(nw.Body.Bytes())
 					if resp.StatusCode == http.StatusOK {
-						writeToCache(cacheKey, resp, info.Ttl)
+						writeToCache(cacheKey, resp, cacheTtl)
 					}
 				}()
 				w.Header().Set(headerCacheStatus, "MISS")
@@ -151,7 +152,7 @@ func cacheMiddleware(next http.Handler) http.Handler {
 				defer func() {
 					_, _ = io.Copy(w, resp.Body)
 					if info.Prefix == cachePrefixStatic {
-						writeToCache(cacheKey, resp, info.Ttl)
+						writeToCache(cacheKey, resp, cacheTtl)
 					}
 				}()
 				w.Header().Set(headerCacheStatus, "HIT")
@@ -184,16 +185,17 @@ func cacheMiddleware(next http.Handler) http.Handler {
 				return
 			}
 			userId := getPlexUserId(token)
-			if userId == 0 {
-				return
+			if userId > 0 {
+				params.Del(headerToken)
+				params.Set("X-Plex-User-Id", strconv.Itoa(userId))
+				params.Set(headerAccept, getAcceptContentType(r))
+				cacheTtl = cacheTtl * 2
 			}
-			params.Del(headerToken)
-			params.Set("X-Plex-User-Id", strconv.Itoa(userId))
-			params.Set(headerAccept, getAcceptContentType(r))
 		default:
 			// invalid prefix
 			return
 		}
+		params.Del("skipRefresh")
 		if len(params) > 0 {
 			cacheKey = fmt.Sprintf("%s:%s?%s", info.Prefix, r.URL.EscapedPath(), params.Encode())
 		} else {
@@ -209,12 +211,14 @@ func getPlexUserId(token string) int {
 	if err == nil {
 		return id
 	}
+	defer func() {
+		redisClient.Set(ctx, cacheKey, id, 0)
+	}()
 	user, err := plexApp.User(token)
-	if err != nil {
-		return 0
+	if err == nil {
+		id = user.ID
 	}
-	redisClient.Set(ctx, cacheKey, user.ID, 0)
-	return user.ID
+	return id
 }
 
 func getAcceptContentType(r *http.Request) string {
