@@ -7,7 +7,6 @@ require (
 	github.com/go-redis/redis/v8 v8.11.4
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
-	github.com/victorspringer/http-cache v0.0.0-20220131145941-ef3624e6666f
 )
 
 require (

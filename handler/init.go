@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"os"
 	"sync"
-	"time"
 
 	"github.com/RoyXiang/plexproxy/common"
 	"github.com/go-redis/redis/v8"
@@ -16,11 +15,6 @@ var (
 	proxy       *httputil.ReverseProxy
 	plaxtProxy  *httputil.ReverseProxy
 	redisClient *redis.Client
-
-	cacheClientCtxKey  = ctxKeyType{}
-	userCacheClient    *cacheClient
-	dynamicCacheClient *cacheClient
-	staticCacheClient  *cacheClient
 
 	mu sync.RWMutex
 	ml common.MultipleLock
@@ -51,9 +45,6 @@ func init() {
 		options, err := redis.ParseURL(redisUrl)
 		if err == nil {
 			redisClient = redis.NewClient(options)
-			dynamicCacheClient = NewCacheClient(redisClient, cachePrefixDynamic, time.Second*5)
-			userCacheClient = NewCacheClient(redisClient, cachePrefixDynamic, time.Hour*24)
-			staticCacheClient = NewCacheClient(redisClient, cachePrefixStatic, time.Hour*24*7)
 		}
 	}
 
