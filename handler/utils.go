@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httputil"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -21,6 +22,22 @@ func getIP(r *http.Request) string {
 		addr = fwd
 	}
 	return addr
+}
+
+func isStreamRequest(r *http.Request) bool {
+	if rangeInHeader := r.Header.Get(headerRange); rangeInHeader != "" {
+		return true
+	}
+	path := r.URL.EscapedPath()
+	switch path {
+	case "/:/eventsource/notifications", "/:/websockets/notifications":
+		return true
+	}
+	switch filepath.Ext(path) {
+	case ".m3u8", ".mkv", ".mp4", ".ts":
+		return true
+	}
+	return false
 }
 
 func getPlexUserId(token string) int {

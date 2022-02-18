@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -17,6 +16,7 @@ import (
 )
 
 var (
+	isStreamCtxKey  = ctxKeyType{}
 	cacheInfoCtxKey = ctxKeyType{}
 )
 
@@ -73,6 +73,15 @@ func globalMiddleware(next http.Handler) http.Handler {
 
 func trafficMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		isStream := isStreamRequest(r)
+		defer func() {
+			ctx := context.WithValue(r.Context(), isStreamCtxKey, isStream)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		}()
+		if isStream {
+			return
+		}
+
 		params := r.URL.Query()
 		if token := r.Header.Get(headerToken); token != "" {
 			params.Set(headerToken, token)
@@ -83,8 +92,6 @@ func trafficMiddleware(next http.Handler) http.Handler {
 		lockKey := fmt.Sprintf("%s?%s", r.URL.EscapedPath(), params.Encode())
 		ml.Lock(lockKey)
 		defer ml.Unlock(lockKey)
-
-		next.ServeHTTP(w, r)
 	})
 }
 
@@ -177,11 +184,8 @@ func cacheMiddleware(next http.Handler) http.Handler {
 		if redisClient == nil {
 			return
 		}
-		if rangeInHeader := r.Header.Get(headerRange); rangeInHeader != "" {
-			return
-		}
-		switch filepath.Ext(r.URL.EscapedPath()) {
-		case ".m3u8", ".mkv", ".mp4", ".ts":
+		isStream := r.Context().Value(isStreamCtxKey).(bool)
+		if isStream {
 			return
 		}
 
