@@ -67,6 +67,12 @@ func globalMiddleware(next http.Handler) http.Handler {
 		if fwd := getIP(r); fwd != "" {
 			nr.RemoteAddr = fwd
 		}
+		if nr.Body != nil {
+			nr.Body = &fakeCloseReadCloser{nr.Body}
+			defer func() {
+				_ = r.Body.(*fakeCloseReadCloser).RealClose()
+			}()
+		}
 
 		middleware.Logger(middleware.Recoverer(next)).ServeHTTP(w, nr)
 	})
