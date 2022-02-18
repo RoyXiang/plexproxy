@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5/middleware"
 )
@@ -74,24 +75,24 @@ func globalMiddleware(next http.Handler) http.Handler {
 func trafficMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		isStream := isStreamRequest(r)
-		defer func() {
-			ctx := context.WithValue(r.Context(), isStreamCtxKey, isStream)
-			next.ServeHTTP(w, r.WithContext(ctx))
-		}()
-		if isStream {
-			return
+		if !isStream {
+			params := r.URL.Query()
+			if token := r.Header.Get(headerToken); token != "" {
+				params.Set(headerToken, token)
+			}
+			if rg := r.Header.Get(headerRange); rg != "" {
+				params.Set(headerRange, rg)
+			}
+			lockKey := fmt.Sprintf("%s?%s", r.URL.EscapedPath(), params.Encode())
+			if !ml.TryLock(lockKey, time.Second) {
+				w.WriteHeader(http.StatusGatewayTimeout)
+				return
+			}
+			defer ml.Unlock(lockKey)
 		}
 
-		params := r.URL.Query()
-		if token := r.Header.Get(headerToken); token != "" {
-			params.Set(headerToken, token)
-		}
-		if rg := r.Header.Get(headerRange); rg != "" {
-			params.Set(headerRange, rg)
-		}
-		lockKey := fmt.Sprintf("%s?%s", r.URL.EscapedPath(), params.Encode())
-		ml.Lock(lockKey)
-		defer ml.Unlock(lockKey)
+		ctx := context.WithValue(r.Context(), isStreamCtxKey, isStream)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
