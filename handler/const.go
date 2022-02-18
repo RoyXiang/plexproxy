@@ -16,13 +16,14 @@ const (
 	headerLanguage    = "Accept-Language"
 	headerRange       = "Range"
 
-	cachePrefixDynamic = "dynamic"
-	cachePrefixStatic  = "static"
-	cachePrefixPlex    = "plex"
+	cachePrefixDynamic  = "dynamic"
+	cachePrefixMetadata = "metadata"
+	cachePrefixStatic   = "static"
+	cachePrefixPlex     = "plex"
 
-	cacheTtlStatic  = time.Hour
-	cacheTtlUser    = time.Minute * 30
-	cacheTtlDynamic = time.Second * 5
+	cacheTtlDynamic  = time.Second * 5
+	cacheTtlMetadata = time.Minute * 30
+	cacheTtlStatic   = time.Hour
 
 	contentTypeAny = "*/*"
 	contentTypeXml = "xml"

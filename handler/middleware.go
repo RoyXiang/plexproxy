@@ -94,11 +94,11 @@ func staticMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func userMiddleware(next http.Handler) http.Handler {
+func metadataMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), cacheInfoCtxKey, &cacheInfo{
-			Prefix: cachePrefixDynamic,
-			Ttl:    cacheTtlUser,
+			Prefix: cachePrefixMetadata,
+			Ttl:    cacheTtlMetadata,
 		})
 		r = r.WithContext(ctx)
 		cacheMiddleware(next).ServeHTTP(w, r)
@@ -179,7 +179,7 @@ func cacheMiddleware(next http.Handler) http.Handler {
 		switch info.Prefix {
 		case cachePrefixStatic:
 			params.Del(headerToken)
-		case cachePrefixDynamic:
+		case cachePrefixDynamic, cachePrefixMetadata:
 			token := r.Header.Get(headerToken)
 			if token == "" {
 				return

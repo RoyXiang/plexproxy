@@ -32,11 +32,11 @@ func NewRouter() http.Handler {
 	staticRouter.Path("/library/metadata/{key}/thumb/{id}").HandlerFunc(handler)
 	staticRouter.Path("/photo/:/transcode").HandlerFunc(handler)
 
-	userRouter := getRouter.PathPrefix("/library").Subrouter()
-	userRouter.Use(userMiddleware)
-	userRouter.PathPrefix("/collections/").HandlerFunc(handler)
-	userRouter.PathPrefix("/metadata/").HandlerFunc(handler)
-	userRouter.PathPrefix("/sections/").HandlerFunc(handler)
+	metadataRouter := getRouter.PathPrefix("/library").Subrouter()
+	metadataRouter.Use(metadataMiddleware)
+	metadataRouter.PathPrefix("/collections/").HandlerFunc(handler)
+	metadataRouter.PathPrefix("/metadata/").HandlerFunc(handler)
+	metadataRouter.PathPrefix("/sections/").HandlerFunc(handler)
 
 	dynamicRouter := getRouter.NewRoute().Subrouter()
 	dynamicRouter.Use(dynamicMiddleware)
@@ -79,7 +79,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request) {
 			defer mu.Unlock()
 
 			ctx := context.Background()
-			keys := redisClient.Keys(ctx, fmt.Sprintf("%s:*", cachePrefixDynamic)).Val()
+			keys := redisClient.Keys(ctx, fmt.Sprintf("%s:*", cachePrefixMetadata)).Val()
 			if len(keys) > 0 {
 				redisClient.Del(ctx, keys...).Val()
 			}
