@@ -56,7 +56,6 @@ func webHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func timelineHandler(w http.ResponseWriter, r *http.Request) {
-	r.Method = http.MethodGet
 	if plaxtProxy != nil {
 		ctx := context.WithValue(context.Background(), http.ServerContextKey, r.Context().Value(http.ServerContextKey))
 		request := r.Clone(ctx)
@@ -65,6 +64,7 @@ func timelineHandler(w http.ResponseWriter, r *http.Request) {
 			plaxtProxy.ServeHTTP(httptest.NewRecorder(), request)
 		}()
 	}
+
 	proxy.ServeHTTP(w, r)
 }
 
