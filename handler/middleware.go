@@ -155,20 +155,22 @@ func cacheMiddleware(next http.Handler) http.Handler {
 				next.ServeHTTP(nw, r)
 				resp = nw.Result()
 				defer func() {
+					w.Header().Set(headerCacheStatus, "MISS")
+					w.WriteHeader(resp.StatusCode)
 					_, _ = w.Write(nw.Body.Bytes())
 					if resp.StatusCode == http.StatusOK {
 						writeToCache(cacheKey, resp, cacheTtl)
 					}
 				}()
-				w.Header().Set(headerCacheStatus, "MISS")
 			} else {
 				defer func() {
+					w.Header().Set(headerCacheStatus, "HIT")
+					w.WriteHeader(resp.StatusCode)
 					_, _ = io.Copy(w, resp.Body)
 					if info.Prefix == cachePrefixStatic {
 						writeToCache(cacheKey, resp, cacheTtl)
 					}
 				}()
-				w.Header().Set(headerCacheStatus, "HIT")
 			}
 
 			for k, v := range resp.Header {
@@ -179,7 +181,6 @@ func cacheMiddleware(next http.Handler) http.Handler {
 			} else {
 				w.Header().Set(headerCacheControl, "no-cache")
 			}
-			w.WriteHeader(resp.StatusCode)
 		}()
 
 		if redisClient == nil {
