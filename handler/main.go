@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"runtime/debug"
 	"strings"
 
 	"github.com/go-chi/chi/v5/middleware"
@@ -64,16 +65,7 @@ func timelineHandler(w http.ResponseWriter, r *http.Request) {
 			plaxtProxy.ServeHTTP(httptest.NewRecorder(), request)
 		}()
 	}
-
-	nw := httptest.NewRecorder()
-	proxy.ServeHTTP(nw, r)
-
-	resp := nw.Result()
-	for k, v := range resp.Header {
-		w.Header()[k] = v
-	}
-	w.WriteHeader(resp.StatusCode)
-	_, _ = w.Write(nw.Body.Bytes())
+	proxy.ServeHTTP(w, r)
 }
 
 func refreshHandler(w http.ResponseWriter, r *http.Request) {
@@ -125,4 +117,14 @@ func decisionHandler(w http.ResponseWriter, r *http.Request) {
 		nr.Header.Set(headerExtraProfile, strings.Join(params[:i], "+"))
 	}
 	proxy.ServeHTTP(w, nr)
+}
+
+func proxyErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
+	logEntry := middleware.GetLogEntry(r)
+	if logEntry != nil {
+		logEntry.Panic(err, debug.Stack())
+	} else {
+		middleware.PrintPrettyStack(err)
+	}
+	w.WriteHeader(http.StatusBadGateway)
 }

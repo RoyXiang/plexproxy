@@ -33,12 +33,14 @@ func init() {
 	}
 	proxy = httputil.NewSingleHostReverseProxy(u)
 	proxy.FlushInterval = -1
+	proxy.ErrorHandler = proxyErrorHandler
 
 	plaxtBaseUrl := os.Getenv("PLAXT_BASEURL")
 	if plaxtBaseUrl != "" {
 		if u, err := url.Parse(plaxtBaseUrl); err == nil {
 			plaxtProxy = httputil.NewSingleHostReverseProxy(u)
 			plaxtProxy.FlushInterval = -1
+			plaxtProxy.ErrorHandler = proxyErrorHandler
 		}
 	}
 
