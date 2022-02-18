@@ -8,28 +8,25 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/http/httputil"
 	"net/url"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
+
+	"github.com/go-chi/chi/v5/middleware"
 )
 
 var (
 	cacheInfoCtxKey = ctxKeyType{}
 )
 
-func trafficMiddleware(next http.Handler) http.Handler {
+func globalMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		headers := http.Header{}
 		params := url.Values{}
 		for name, values := range r.URL.Query() {
 			switch {
 			case name == headerPageSize, name == headerPageStart:
-				params[name] = values
-			case name == headerToken:
-				headers[name] = values
 				params[name] = values
 			case name == "url":
 				for _, value := range values {
@@ -45,7 +42,9 @@ func trafficMiddleware(next http.Handler) http.Handler {
 						params.Add(name, value)
 					}
 				}
-			case strings.HasPrefix(name, headerPlexPrefix), name == headerLanguage:
+			case strings.HasPrefix(name, headerPlexPrefix),
+				name == headerAcceptLanguage,
+				name == headerToken:
 				headers[name] = values
 			default:
 				params[name] = values
@@ -55,9 +54,6 @@ func trafficMiddleware(next http.Handler) http.Handler {
 			switch name {
 			case headerPageSize, headerPageStart:
 				params[name] = values
-			case headerToken:
-				headers[name] = values
-				params[name] = values
 			default:
 				headers[name] = values
 			}
@@ -66,20 +62,29 @@ func trafficMiddleware(next http.Handler) http.Handler {
 		nr := r.Clone(r.Context())
 		nr.Header = headers
 		nr.URL.RawQuery = params.Encode()
-
-		var lockKey string
-		if hash := headers.Get(headerHash); hash != "" {
-			lockKey = hash
-		} else {
-			if rg := headers.Get(headerRange); rg != "" {
-				params.Set(headerRange, rg)
-			}
-			lockKey = fmt.Sprintf("%s?%s", r.URL.EscapedPath(), params.Encode())
+		nr.RequestURI = nr.URL.RequestURI()
+		if fwd := getIP(r); fwd != "" {
+			nr.RemoteAddr = fwd
 		}
+
+		middleware.Logger(middleware.Recoverer(next)).ServeHTTP(w, nr)
+	})
+}
+
+func trafficMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		params := r.URL.Query()
+		if token := r.Header.Get(headerToken); token != "" {
+			params.Set(headerToken, token)
+		}
+		if rg := r.Header.Get(headerRange); rg != "" {
+			params.Set(headerRange, rg)
+		}
+		lockKey := fmt.Sprintf("%s?%s", r.URL.EscapedPath(), params.Encode())
 		ml.Lock(lockKey)
 		defer ml.Unlock(lockKey)
 
-		next.ServeHTTP(w, nr)
+		next.ServeHTTP(w, r)
 	})
 }
 
@@ -162,9 +167,9 @@ func cacheMiddleware(next http.Handler) http.Handler {
 				w.Header()[k] = v
 			}
 			if info.Prefix == cachePrefixStatic {
-				w.Header().Set(headerCache, "public, max-age=86400, s-maxage=259200")
+				w.Header().Set(headerCacheControl, "public, max-age=86400, s-maxage=259200")
 			} else {
-				w.Header().Set(headerCache, "no-cache")
+				w.Header().Set(headerCacheControl, "no-cache")
 			}
 			w.WriteHeader(resp.StatusCode)
 		}()
@@ -183,7 +188,7 @@ func cacheMiddleware(next http.Handler) http.Handler {
 		params := r.URL.Query()
 		switch info.Prefix {
 		case cachePrefixStatic:
-			params.Del(headerToken)
+			break
 		case cachePrefixDynamic, cachePrefixMetadata:
 			token := r.Header.Get(headerToken)
 			if token == "" {
@@ -191,10 +196,11 @@ func cacheMiddleware(next http.Handler) http.Handler {
 			}
 			userId := getPlexUserId(token)
 			if userId > 0 {
-				params.Del(headerToken)
 				params.Set("X-Plex-User-Id", strconv.Itoa(userId))
 				params.Set(headerAccept, getAcceptContentType(r))
 				cacheTtl = cacheTtl * 2
+			} else {
+				params.Set(headerToken, token)
 			}
 		default:
 			// invalid prefix
@@ -207,49 +213,4 @@ func cacheMiddleware(next http.Handler) http.Handler {
 			cacheKey = fmt.Sprintf("%s:%s", info.Prefix, r.URL.EscapedPath())
 		}
 	})
-}
-
-func getPlexUserId(token string) int {
-	ctx := context.Background()
-	cacheKey := fmt.Sprintf("%s:token:%s", cachePrefixPlex, token)
-	id, err := redisClient.Get(ctx, cacheKey).Int()
-	if err == nil {
-		return id
-	}
-	defer func() {
-		redisClient.Set(ctx, cacheKey, id, 0)
-	}()
-	user, err := plexApp.User(token)
-	if err == nil {
-		id = user.ID
-	}
-	return id
-}
-
-func getAcceptContentType(r *http.Request) string {
-	accept := r.Header.Get(headerAccept)
-	if accept == "" {
-		return contentTypeXml
-	}
-	fields := strings.FieldsFunc(accept, func(r rune) bool {
-		return r == ',' || r == ' '
-	})
-	for _, field := range fields {
-		if field == contentTypeAny {
-			continue
-		}
-		parts := strings.Split(field, "/")
-		if len(parts) == 2 {
-			return parts[1]
-		}
-	}
-	return contentTypeXml
-}
-
-func writeToCache(key string, resp *http.Response, ttl time.Duration) {
-	b, err := httputil.DumpResponse(resp, true)
-	if err != nil {
-		return
-	}
-	redisClient.Set(context.Background(), key, b, ttl)
 }

@@ -8,15 +8,12 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 )
 
 func NewRouter() http.Handler {
 	r := mux.NewRouter()
-	r.Use(handlers.ProxyHeaders)
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
+	r.Use(globalMiddleware)
 
 	r.Methods(http.MethodGet).PathPrefix("/web/").HandlerFunc(webHandler)
 	r.Path("/:/timeline").HandlerFunc(timelineHandler)
@@ -61,9 +58,6 @@ func timelineHandler(w http.ResponseWriter, r *http.Request) {
 		request := r.Clone(ctx)
 		go func() {
 			request.Header.Del(headerToken)
-			params := request.URL.Query()
-			params.Del(headerToken)
-			request.URL.RawQuery = params.Encode()
 			plaxtProxy.ServeHTTP(httptest.NewRecorder(), request)
 		}()
 	}
@@ -102,6 +96,7 @@ func decisionHandler(w http.ResponseWriter, r *http.Request) {
 
 	nr := r.Clone(r.Context())
 	nr.URL.RawQuery = query.Encode()
+	nr.RequestURI = nr.URL.RequestURI()
 	if extraProfile := r.Header.Get(headerExtra); extraProfile != "" {
 		params := strings.Split(extraProfile, "+")
 		i := 0
