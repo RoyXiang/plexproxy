@@ -24,6 +24,7 @@ func NewRouter() http.Handler {
 
 	staticRouter := getRouter.NewRoute().Subrouter()
 	staticRouter.Use(staticMiddleware)
+	staticRouter.Path("/library/media/{key}/chapterImages/{id}").HandlerFunc(handler)
 	staticRouter.Path("/library/metadata/{key}/art/{id}").HandlerFunc(handler)
 	staticRouter.Path("/library/metadata/{key}/thumb/{id}").HandlerFunc(handler)
 	staticRouter.Path("/photo/:/transcode").HandlerFunc(handler)
