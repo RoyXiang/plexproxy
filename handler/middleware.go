@@ -130,13 +130,14 @@ func dynamicMiddleware(next http.Handler) http.Handler {
 
 func cacheMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		mu.RLock()
-		defer mu.RUnlock()
-
 		var cacheKey string
 		ctx := context.Background()
 		info := r.Context().Value(cacheInfoCtxKey).(*cacheInfo)
 		cacheTtl := info.Ttl
+		if info.Prefix == cachePrefixMetadata {
+			mu.RLock()
+			defer mu.RUnlock()
+		}
 
 		defer func() {
 			if cacheKey == "" {
