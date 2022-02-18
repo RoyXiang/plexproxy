@@ -85,13 +85,18 @@ func decisionHandler(w http.ResponseWriter, r *http.Request) {
 	query.Del("maxVideoBitrate")
 	query.Del("videoBitrate")
 	query.Set("autoAdjustQuality", "0")
-	query.Set("copyts", "0")
 	query.Set("directPlay", "1")
 	query.Set("directStream", "1")
 	query.Set("directStreamAudio", "1")
-	query.Set("hasMDE", "0")
 	query.Set("videoQuality", "100")
 	query.Set("videoResolution", "4096x2160")
+
+	protocol := query.Get("protocol")
+	switch protocol {
+	case "http":
+		query.Set("copyts", "0")
+		query.Set("hasMDE", "0")
+	}
 
 	nr := r.Clone(r.Context())
 	nr.URL.RawQuery = query.Encode()
