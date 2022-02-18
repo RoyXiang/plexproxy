@@ -28,13 +28,8 @@ func isStreamRequest(r *http.Request) bool {
 	if rangeInHeader := r.Header.Get(headerRange); rangeInHeader != "" {
 		return true
 	}
-	path := r.URL.EscapedPath()
-	switch path {
-	case "/:/eventsource/notifications", "/:/websockets/notifications":
-		return true
-	}
-	switch filepath.Ext(path) {
-	case ".m3u8", ".mkv", ".mp4", ".ts":
+	switch filepath.Ext(r.URL.EscapedPath()) {
+	case ".m3u8", ".ts":
 		return true
 	}
 	return false

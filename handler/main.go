@@ -16,8 +16,11 @@ func NewRouter() http.Handler {
 	r.Use(globalMiddleware)
 
 	r.Methods(http.MethodGet).PathPrefix("/web/").HandlerFunc(webHandler)
+	r.Path("/:/eventsource/notifications").HandlerFunc(handler)
 	r.Path("/:/timeline").HandlerFunc(timelineHandler)
+	r.Path("/:/websockets/notifications").HandlerFunc(handler)
 	r.Path("/library/sections/{id}/refresh").HandlerFunc(refreshHandler)
+	r.PathPrefix("/library/parts/").HandlerFunc(handler)
 
 	getRouter := r.Methods(http.MethodGet).Subrouter()
 	getRouter.Use(trafficMiddleware)
