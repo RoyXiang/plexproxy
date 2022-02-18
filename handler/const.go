@@ -14,6 +14,7 @@ const (
 	headerToken       = "X-Plex-Token"
 	headerAccept      = "Accept"
 	headerLanguage    = "Accept-Language"
+	headerCache       = "Cache-Control"
 	headerRange       = "Range"
 
 	cachePrefixDynamic  = "dynamic"

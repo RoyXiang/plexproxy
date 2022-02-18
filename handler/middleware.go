@@ -161,6 +161,11 @@ func cacheMiddleware(next http.Handler) http.Handler {
 			for k, v := range resp.Header {
 				w.Header()[k] = v
 			}
+			if info.Prefix == cachePrefixStatic {
+				w.Header().Set(headerCache, "public, max-age=86400, s-maxage=259200")
+			} else {
+				w.Header().Set(headerCache, "no-cache")
+			}
 			w.WriteHeader(resp.StatusCode)
 		}()
 
