@@ -105,7 +105,7 @@ func decisionHandler(w http.ResponseWriter, r *http.Request) {
 	nr := r.Clone(r.Context())
 	nr.URL.RawQuery = query.Encode()
 	nr.RequestURI = nr.URL.RequestURI()
-	if extraProfile := r.Header.Get(headerExtra); extraProfile != "" {
+	if extraProfile := r.Header.Get(headerExtraProfile); extraProfile != "" {
 		params := strings.Split(extraProfile, "+")
 		i := 0
 		for _, value := range params {
@@ -114,7 +114,7 @@ func decisionHandler(w http.ResponseWriter, r *http.Request) {
 				i++
 			}
 		}
-		nr.Header.Set(headerExtra, strings.Join(params[:i], "+"))
+		nr.Header.Set(headerExtraProfile, strings.Join(params[:i], "+"))
 	}
 	proxy.ServeHTTP(w, nr)
 }
