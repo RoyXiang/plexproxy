@@ -16,8 +16,8 @@ import (
 )
 
 var (
-	isStreamCtxKey  = ctxKeyType{}
-	cacheInfoCtxKey = ctxKeyType{}
+	isStreamCtxKey  = &ctxKeyType{"isStream"}
+	cacheInfoCtxKey = &ctxKeyType{"cacheInfo"}
 )
 
 func globalMiddleware(next http.Handler) http.Handler {

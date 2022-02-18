@@ -4,7 +4,9 @@ import (
 	"time"
 )
 
-type ctxKeyType struct{}
+type ctxKeyType struct {
+	name string
+}
 
 type cacheInfo struct {
 	Prefix string
