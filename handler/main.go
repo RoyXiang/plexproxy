@@ -65,7 +65,15 @@ func timelineHandler(w http.ResponseWriter, r *http.Request) {
 		}()
 	}
 
-	proxy.ServeHTTP(w, r)
+	nw := httptest.NewRecorder()
+	proxy.ServeHTTP(nw, r)
+
+	resp := nw.Result()
+	for k, v := range resp.Header {
+		w.Header()[k] = v
+	}
+	w.WriteHeader(resp.StatusCode)
+	_, _ = w.Write(nw.Body.Bytes())
 }
 
 func refreshHandler(w http.ResponseWriter, r *http.Request) {
