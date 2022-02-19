@@ -11,23 +11,13 @@ import (
 	"time"
 )
 
-func cloneRequest(r *http.Request, ctx context.Context, headers http.Header, query url.Values) (*http.Request, func()) {
-	nr := r.Clone(ctx)
+func modifyRequest(r *http.Request, headers http.Header, query url.Values) {
 	if headers != nil {
-		nr.Header = headers
+		r.Header = headers
 	}
 	if query != nil {
-		nr.URL.RawQuery = query.Encode()
-		nr.RequestURI = nr.URL.RequestURI()
-	}
-	if nr.ContentLength == 0 {
-		nr.Body = nil
-	}
-	nr.Close = false
-	return nr, func() {
-		if nr.Body != nil {
-			_ = nr.Body.Close()
-		}
+		r.URL.RawQuery = query.Encode()
+		r.RequestURI = r.URL.RequestURI()
 	}
 }
 

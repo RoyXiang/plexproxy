@@ -62,8 +62,8 @@ func timelineHandler(w http.ResponseWriter, r *http.Request) {
 			headers := r.Header
 			headers.Del(headerToken)
 
-			nr, cancel := cloneRequest(r, context.Background(), headers, nil)
-			defer cancel()
+			nr := r.Clone(context.Background())
+			modifyRequest(nr, headers, nil)
 
 			plaxtProxy.ServeHTTP(httptest.NewRecorder(), nr)
 		}()
@@ -118,10 +118,8 @@ func decisionHandler(w http.ResponseWriter, r *http.Request) {
 		headers.Set(headerExtraProfile, strings.Join(params[:i], "+"))
 	}
 
-	nr, cancel := cloneRequest(r, r.Context(), headers, query)
-	defer cancel()
-
-	proxy.ServeHTTP(w, nr)
+	modifyRequest(r, headers, query)
+	proxy.ServeHTTP(w, r)
 }
 
 func proxyErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
