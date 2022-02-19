@@ -11,14 +11,16 @@ import (
 	"time"
 )
 
-func modifyRequest(r *http.Request, headers http.Header, query url.Values) {
+func cloneRequest(r *http.Request, headers http.Header, query url.Values) *http.Request {
+	nr := r.Clone(r.Context())
 	if headers != nil {
-		r.Header = headers
+		nr.Header = headers
 	}
 	if query != nil {
-		r.URL.RawQuery = query.Encode()
-		r.RequestURI = r.URL.RequestURI()
+		nr.URL.RawQuery = query.Encode()
+		nr.RequestURI = nr.URL.RequestURI()
 	}
+	return nr
 }
 
 func getIP(r *http.Request) string {

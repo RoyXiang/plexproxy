@@ -116,8 +116,8 @@ func decisionHandler(w http.ResponseWriter, r *http.Request) {
 		headers.Set(headerExtraProfile, strings.Join(params[:i], "+"))
 	}
 
-	modifyRequest(r, headers, query)
-	proxy.ServeHTTP(w, r)
+	nr := cloneRequest(r, headers, query)
+	proxy.ServeHTTP(w, nr)
 }
 
 func proxyErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
