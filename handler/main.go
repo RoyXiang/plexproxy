@@ -16,7 +16,6 @@ func NewRouter() http.Handler {
 	r.Use(normalizeMiddleware)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
-	r.Use(trafficMiddleware)
 
 	streamRouter := r.Methods(http.MethodGet).Subrouter()
 	streamRouter.Use(streamMiddleware)
