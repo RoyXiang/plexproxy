@@ -74,7 +74,7 @@ func globalMiddleware(next http.Handler) http.Handler {
 			}()
 		}
 
-		middleware.Logger(middleware.Recoverer(next)).ServeHTTP(w, nr)
+		middleware.Recoverer(middleware.Logger(next)).ServeHTTP(w, nr)
 	})
 }
 
