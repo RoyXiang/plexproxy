@@ -23,7 +23,7 @@ func NewRouter() http.Handler {
 	r.Path("/:/timeline").HandlerFunc(timelineHandler)
 	r.Path("/:/websockets/notifications").HandlerFunc(handler)
 	r.Path("/library/sections/{id}/refresh").HandlerFunc(refreshHandler)
-	r.PathPrefix("/library/parts/").HandlerFunc(handler)
+	r.PathPrefix("/library/parts/").HandlerFunc(streamHandler)
 
 	staticRouter := r.Methods(http.MethodGet).Subrouter()
 	staticRouter.Use(staticMiddleware)
@@ -82,6 +82,15 @@ func refreshHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}()
 	}
+}
+
+func streamHandler(w http.ResponseWriter, r *http.Request) {
+	headers := r.Header
+	if rg := headers.Get(headerRange); rg == "" {
+		headers.Set(headerRange, "0-8388608")
+	}
+	nr := cloneRequest(r, headers, nil)
+	proxy.ServeHTTP(w, nr)
 }
 
 func decisionHandler(w http.ResponseWriter, r *http.Request) {
