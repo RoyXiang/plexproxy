@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"runtime/debug"
 	"strings"
 
 	"github.com/go-chi/chi/v5/middleware"
@@ -118,14 +117,4 @@ func decisionHandler(w http.ResponseWriter, r *http.Request) {
 
 	nr := cloneRequest(r, headers, query)
 	proxy.ServeHTTP(w, nr)
-}
-
-func proxyErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
-	logEntry := middleware.GetLogEntry(r)
-	if logEntry != nil {
-		logEntry.Panic(err, debug.Stack())
-	} else {
-		middleware.PrintPrettyStack(err)
-	}
-	w.WriteHeader(http.StatusBadGateway)
 }

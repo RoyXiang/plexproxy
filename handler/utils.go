@@ -7,9 +7,38 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"time"
+
+	"github.com/RoyXiang/plexproxy/common"
+	"github.com/go-chi/chi/v5/middleware"
 )
+
+func newReverseProxy(baseUrl string) *httputil.ReverseProxy {
+	if baseUrl == "" {
+		return nil
+	}
+	u, err := url.Parse(baseUrl)
+	if err != nil {
+		return nil
+	}
+	p := httputil.NewSingleHostReverseProxy(u)
+	p.FlushInterval = -1
+	p.ErrorLog = common.GetLogger()
+	p.ErrorHandler = proxyErrorHandler
+	return p
+}
+
+func proxyErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
+	logEntry := middleware.GetLogEntry(r)
+	if logEntry != nil {
+		logEntry.Panic(err, debug.Stack())
+	} else {
+		middleware.PrintPrettyStack(err)
+	}
+	w.WriteHeader(http.StatusBadGateway)
+}
 
 func cloneRequest(r *http.Request, headers http.Header, query url.Values) *http.Request {
 	nr := r.Clone(r.Context())

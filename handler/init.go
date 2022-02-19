@@ -3,7 +3,6 @@ package handler
 import (
 	"log"
 	"net/http/httputil"
-	"net/url"
 	"os"
 	"sync"
 
@@ -23,28 +22,11 @@ var (
 )
 
 func init() {
-	baseUrl := os.Getenv("PLEX_BASEURL")
-	if baseUrl == "" {
-		log.Fatalln("Please configure PLEX_BASEURL at first")
+	proxy = newReverseProxy(os.Getenv("PLEX_BASEURL"))
+	if proxy == nil {
+		log.Fatalln("Please configure PLEX_BASEURL as a valid URL at first")
 	}
-	u, err := url.Parse(baseUrl)
-	if err != nil {
-		log.Fatalln("Please ensure PLEX_BASEURL is a valid URL")
-	}
-	proxy = httputil.NewSingleHostReverseProxy(u)
-	proxy.FlushInterval = -1
-	proxy.ErrorLog = common.GetLogger()
-	proxy.ErrorHandler = proxyErrorHandler
-
-	plaxtBaseUrl := os.Getenv("PLAXT_BASEURL")
-	if plaxtBaseUrl != "" {
-		if u, err := url.Parse(plaxtBaseUrl); err == nil {
-			plaxtProxy = httputil.NewSingleHostReverseProxy(u)
-			plaxtProxy.FlushInterval = -1
-			plaxtProxy.ErrorLog = common.GetLogger()
-			plaxtProxy.ErrorHandler = proxyErrorHandler
-		}
-	}
+	plaxtProxy = newReverseProxy(os.Getenv("PLAXT_BASEURL"))
 
 	redisUrl := os.Getenv("REDIS_URL")
 	if redisUrl != "" {
