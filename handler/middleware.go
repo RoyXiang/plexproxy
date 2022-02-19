@@ -161,14 +161,8 @@ func cacheMiddleware(next http.Handler) http.Handler {
 					}
 				}()
 			}
-
 			for k, v := range resp.Header {
 				w.Header()[k] = v
-			}
-			if info.Prefix == cachePrefixStatic {
-				w.Header().Set(headerCacheControl, "public, max-age=86400, s-maxage=259200")
-			} else {
-				w.Header().Set(headerCacheControl, "no-cache")
 			}
 		}()
 		if redisClient == nil || isStreamRequest(r) {

@@ -26,8 +26,29 @@ func newReverseProxy(baseUrl string) *httputil.ReverseProxy {
 	p := httputil.NewSingleHostReverseProxy(u)
 	p.FlushInterval = -1
 	p.ErrorLog = common.GetLogger()
+	p.ModifyResponse = modifyResponse
 	p.ErrorHandler = proxyErrorHandler
 	return p
+}
+
+func modifyResponse(resp *http.Response) error {
+	contentType := resp.Header.Get(headerContentType)
+	if contentType == "" {
+		return nil
+	}
+	pieces := strings.Split(contentType, "/")
+	if len(pieces) == 0 {
+		return nil
+	}
+	switch pieces[0] {
+	case "audio", "video":
+		resp.Header.Set(headerVary, "*")
+	case "image":
+		resp.Header.Set(headerCacheControl, "public, max-age=86400, s-maxage=259200")
+	default:
+		resp.Header.Set(headerCacheControl, "no-cache")
+	}
+	return nil
 }
 
 func proxyErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
