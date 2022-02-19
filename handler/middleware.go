@@ -60,10 +60,7 @@ func globalMiddleware(next http.Handler) http.Handler {
 			}
 		}
 
-		nr := r.Clone(r.Context())
-		nr.Header = headers
-		nr.URL.RawQuery = params.Encode()
-		nr.RequestURI = nr.URL.RequestURI()
+		nr := cloneRequest(r, r.Context(), headers, params)
 		if fwd := getIP(r); fwd != "" {
 			nr.RemoteAddr = fwd
 		}

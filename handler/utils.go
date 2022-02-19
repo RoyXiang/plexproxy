@@ -5,10 +5,26 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httputil"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"time"
 )
+
+func cloneRequest(r *http.Request, ctx context.Context, headers http.Header, query url.Values) *http.Request {
+	nr := r.Clone(ctx)
+	if headers != nil {
+		nr.Header = headers
+	}
+	if query != nil {
+		nr.URL.RawQuery = query.Encode()
+		nr.RequestURI = nr.URL.RequestURI()
+	}
+	if nr.ContentLength == 0 {
+		nr.Body = nil
+	}
+	return nr
+}
 
 func getIP(r *http.Request) string {
 	var addr string

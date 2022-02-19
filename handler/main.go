@@ -58,11 +58,11 @@ func webHandler(w http.ResponseWriter, r *http.Request) {
 
 func timelineHandler(w http.ResponseWriter, r *http.Request) {
 	if plaxtProxy != nil {
-		ctx := context.WithValue(context.Background(), http.ServerContextKey, r.Context().Value(http.ServerContextKey))
-		request := r.Clone(ctx)
 		go func() {
-			request.Header.Del(headerToken)
-			plaxtProxy.ServeHTTP(httptest.NewRecorder(), request)
+			headers := r.Header
+			headers.Del(headerToken)
+			nr := cloneRequest(r, context.Background(), headers, nil)
+			plaxtProxy.ServeHTTP(httptest.NewRecorder(), nr)
 		}()
 	}
 	proxy.ServeHTTP(w, r)
@@ -102,10 +102,8 @@ func decisionHandler(w http.ResponseWriter, r *http.Request) {
 		query.Set("hasMDE", "0")
 	}
 
-	nr := r.Clone(r.Context())
-	nr.URL.RawQuery = query.Encode()
-	nr.RequestURI = nr.URL.RequestURI()
-	if extraProfile := r.Header.Get(headerExtraProfile); extraProfile != "" {
+	headers := r.Header
+	if extraProfile := headers.Get(headerExtraProfile); extraProfile != "" {
 		params := strings.Split(extraProfile, "+")
 		i := 0
 		for _, value := range params {
@@ -114,8 +112,9 @@ func decisionHandler(w http.ResponseWriter, r *http.Request) {
 				i++
 			}
 		}
-		nr.Header.Set(headerExtraProfile, strings.Join(params[:i], "+"))
+		headers.Set(headerExtraProfile, strings.Join(params[:i], "+"))
 	}
+	nr := cloneRequest(r, r.Context(), headers, query)
 	proxy.ServeHTTP(w, nr)
 }
 
