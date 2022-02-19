@@ -65,6 +65,27 @@ func normalizeMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+func streamMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		headers := r.Header
+
+		defaultRange := "0-8388608"
+		rg := headers.Get(headerRange)
+		if rg != "" {
+			indices := strings.SplitN(rg, "-", 1)
+			if len(indices) == 0 || indices[0] == "0" {
+				rg = defaultRange
+			}
+		} else {
+			rg = defaultRange
+		}
+		headers.Set(headerRange, rg)
+
+		nr := cloneRequest(r, headers, nil)
+		next.ServeHTTP(w, nr)
+	})
+}
+
 func trafficMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		params := r.URL.Query()

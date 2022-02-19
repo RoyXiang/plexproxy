@@ -18,32 +18,38 @@ func NewRouter() http.Handler {
 	r.Use(middleware.Recoverer)
 	r.Use(trafficMiddleware)
 
-	r.Methods(http.MethodGet).PathPrefix("/web/").HandlerFunc(webHandler)
-	r.Path("/:/eventsource/notifications").HandlerFunc(handler)
-	r.Path("/:/timeline").HandlerFunc(timelineHandler)
-	r.Path("/:/websockets/notifications").HandlerFunc(handler)
-	r.Path("/library/sections/{id}/refresh").HandlerFunc(refreshHandler)
-	r.PathPrefix("/library/parts/").HandlerFunc(streamHandler)
+	streamRouter := r.Methods(http.MethodGet).Subrouter()
+	streamRouter.Use(streamMiddleware)
+	streamRouter.Use(trafficMiddleware)
+	streamRouter.PathPrefix("/library/parts/").HandlerFunc(handler)
 
-	staticRouter := r.Methods(http.MethodGet).Subrouter()
+	defaultRouter := r.NewRoute().Subrouter()
+	defaultRouter.Use(trafficMiddleware)
+	defaultRouter.Methods(http.MethodGet).PathPrefix("/web/").HandlerFunc(webHandler)
+	defaultRouter.Path("/:/eventsource/notifications").HandlerFunc(handler)
+	defaultRouter.Path("/:/timeline").HandlerFunc(timelineHandler)
+	defaultRouter.Path("/:/websockets/notifications").HandlerFunc(handler)
+	defaultRouter.Path("/library/sections/{id}/refresh").HandlerFunc(refreshHandler)
+
+	staticRouter := defaultRouter.Methods(http.MethodGet).Subrouter()
 	staticRouter.Use(staticMiddleware)
 	staticRouter.Path("/library/media/{key}/chapterImages/{id}").HandlerFunc(handler)
 	staticRouter.Path("/library/metadata/{key}/art/{id}").HandlerFunc(handler)
 	staticRouter.Path("/library/metadata/{key}/thumb/{id}").HandlerFunc(handler)
 	staticRouter.Path("/photo/:/transcode").HandlerFunc(handler)
 
-	metadataRouter := r.Methods(http.MethodGet).PathPrefix("/library").Subrouter()
+	metadataRouter := defaultRouter.Methods(http.MethodGet).PathPrefix("/library").Subrouter()
 	metadataRouter.Use(metadataMiddleware)
 	metadataRouter.PathPrefix("/collections/").HandlerFunc(handler)
 	metadataRouter.PathPrefix("/metadata/").HandlerFunc(handler)
 	metadataRouter.PathPrefix("/sections/").HandlerFunc(handler)
 
-	dynamicRouter := r.Methods(http.MethodGet).Subrouter()
+	dynamicRouter := defaultRouter.Methods(http.MethodGet).Subrouter()
 	dynamicRouter.Use(dynamicMiddleware)
 	dynamicRouter.Path("/video/:/transcode/universal/decision").HandlerFunc(decisionHandler)
 	dynamicRouter.PathPrefix("/").HandlerFunc(handler)
 
-	r.PathPrefix("/").HandlerFunc(handler)
+	defaultRouter.PathPrefix("/").HandlerFunc(handler)
 	return r
 }
 
@@ -82,15 +88,6 @@ func refreshHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}()
 	}
-}
-
-func streamHandler(w http.ResponseWriter, r *http.Request) {
-	headers := r.Header
-	if rg := headers.Get(headerRange); rg == "" {
-		headers.Set(headerRange, "0-8388608")
-	}
-	nr := cloneRequest(r, headers, nil)
-	proxy.ServeHTTP(w, nr)
 }
 
 func decisionHandler(w http.ResponseWriter, r *http.Request) {
