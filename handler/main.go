@@ -61,7 +61,10 @@ func timelineHandler(w http.ResponseWriter, r *http.Request) {
 		go func() {
 			headers := r.Header
 			headers.Del(headerToken)
-			nr := cloneRequest(r, context.Background(), headers, nil)
+
+			nr, cancel := cloneRequest(r, context.Background(), headers, nil)
+			defer cancel()
+
 			plaxtProxy.ServeHTTP(httptest.NewRecorder(), nr)
 		}()
 	}
@@ -114,7 +117,10 @@ func decisionHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		headers.Set(headerExtraProfile, strings.Join(params[:i], "+"))
 	}
-	nr := cloneRequest(r, r.Context(), headers, query)
+
+	nr, cancel := cloneRequest(r, r.Context(), headers, query)
+	defer cancel()
+
 	proxy.ServeHTTP(w, nr)
 }
 

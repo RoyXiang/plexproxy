@@ -60,10 +60,11 @@ func globalMiddleware(next http.Handler) http.Handler {
 			}
 		}
 
-		nr := cloneRequest(r, r.Context(), headers, params)
+		nr, cancel := cloneRequest(r, r.Context(), headers, params)
 		if fwd := getIP(r); fwd != "" {
 			nr.RemoteAddr = fwd
 		}
+		defer cancel()
 
 		middleware.Recoverer(middleware.Logger(next)).ServeHTTP(w, nr)
 	})

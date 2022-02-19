@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func cloneRequest(r *http.Request, ctx context.Context, headers http.Header, query url.Values) *http.Request {
+func cloneRequest(r *http.Request, ctx context.Context, headers http.Header, query url.Values) (*http.Request, func()) {
 	nr := r.Clone(ctx)
 	if headers != nil {
 		nr.Header = headers
@@ -23,7 +23,12 @@ func cloneRequest(r *http.Request, ctx context.Context, headers http.Header, que
 	if nr.ContentLength == 0 {
 		nr.Body = nil
 	}
-	return nr
+	nr.Close = false
+	return nr, func() {
+		if nr.Body != nil {
+			_ = nr.Body.Close()
+		}
+	}
 }
 
 func getIP(r *http.Request) string {
