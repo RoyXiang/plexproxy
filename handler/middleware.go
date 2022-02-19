@@ -12,16 +12,13 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/go-chi/chi/v5/middleware"
 )
 
 var (
-	isStreamCtxKey  = &ctxKeyType{"isStream"}
 	cacheInfoCtxKey = &ctxKeyType{"cacheInfo"}
 )
 
-func globalMiddleware(next http.Handler) http.Handler {
+func normalizeMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		headers := http.Header{}
 		params := url.Values{}
@@ -64,31 +61,26 @@ func globalMiddleware(next http.Handler) http.Handler {
 		if fwd := getIP(r); fwd != "" {
 			nr.RemoteAddr = fwd
 		}
-		middleware.Recoverer(middleware.Logger(next)).ServeHTTP(w, nr)
+		next.ServeHTTP(w, nr)
 	})
 }
 
 func trafficMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		isStream := isStreamRequest(r)
-		if !isStream {
-			params := r.URL.Query()
-			if token := r.Header.Get(headerToken); token != "" {
-				params.Set(headerToken, token)
-			}
-			if rg := r.Header.Get(headerRange); rg != "" {
-				params.Set(headerRange, rg)
-			}
-			lockKey := fmt.Sprintf("%s?%s", r.URL.EscapedPath(), params.Encode())
-			if !ml.TryLock(lockKey, time.Second) {
-				w.WriteHeader(http.StatusGatewayTimeout)
-				return
-			}
-			defer ml.Unlock(lockKey)
+		params := r.URL.Query()
+		if token := r.Header.Get(headerToken); token != "" {
+			params.Set(headerToken, token)
 		}
-
-		ctx := context.WithValue(r.Context(), isStreamCtxKey, isStream)
-		next.ServeHTTP(w, r.WithContext(ctx))
+		if rg := r.Header.Get(headerRange); rg != "" {
+			params.Set(headerRange, rg)
+		}
+		lockKey := fmt.Sprintf("%s?%s", r.URL.EscapedPath(), params.Encode())
+		if !ml.TryLock(lockKey, time.Second) {
+			w.WriteHeader(http.StatusGatewayTimeout)
+			return
+		}
+		defer ml.Unlock(lockKey)
+		next.ServeHTTP(w, r)
 	})
 }
 
@@ -179,15 +171,9 @@ func cacheMiddleware(next http.Handler) http.Handler {
 				w.Header().Set(headerCacheControl, "no-cache")
 			}
 		}()
-
-		if redisClient == nil {
+		if redisClient == nil || isStreamRequest(r) {
 			return
 		}
-		isStream := r.Context().Value(isStreamCtxKey).(bool)
-		if isStream {
-			return
-		}
-
 		params := r.URL.Query()
 		switch info.Prefix {
 		case cachePrefixStatic:
