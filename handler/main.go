@@ -58,15 +58,13 @@ func webHandler(w http.ResponseWriter, r *http.Request) {
 
 func timelineHandler(w http.ResponseWriter, r *http.Request) {
 	if plaxtProxy != nil {
-		go func() {
-			headers := r.Header
-			headers.Del(headerToken)
-
-			nr := r.Clone(context.Background())
-			modifyRequest(nr, headers, nil)
-
-			plaxtProxy.ServeHTTP(httptest.NewRecorder(), nr)
-		}()
+		if client := r.Header.Get(headerClientIdentity); client != "" {
+			nr, _ := http.NewRequest(http.MethodGet, r.URL.String(), nil)
+			nr.Header.Set(headerClientIdentity, client)
+			go func() {
+				plaxtProxy.ServeHTTP(httptest.NewRecorder(), nr)
+			}()
+		}
 	}
 	proxy.ServeHTTP(w, r)
 }
