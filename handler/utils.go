@@ -10,17 +10,6 @@ import (
 	"time"
 )
 
-func (w *fakeCloseReadCloser) Close() error {
-	return nil
-}
-
-func (w *fakeCloseReadCloser) RealClose() error {
-	if w.ReadCloser == nil {
-		return nil
-	}
-	return w.ReadCloser.Close()
-}
-
 func getIP(r *http.Request) string {
 	var addr string
 	if fwd := r.Header.Get(headerForwardedFor); fwd != "" {
