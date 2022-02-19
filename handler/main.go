@@ -48,7 +48,7 @@ func NewRouter() http.Handler {
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
-	proxy.ServeHTTP(w, r)
+	plexProxy.ServeHTTP(w, r)
 }
 
 func webHandler(w http.ResponseWriter, r *http.Request) {
@@ -65,11 +65,11 @@ func timelineHandler(w http.ResponseWriter, r *http.Request) {
 			}()
 		}
 	}
-	proxy.ServeHTTP(w, r)
+	plexProxy.ServeHTTP(w, r)
 }
 
 func refreshHandler(w http.ResponseWriter, r *http.Request) {
-	proxy.ServeHTTP(w, r)
+	plexProxy.ServeHTTP(w, r)
 	if redisClient != nil && w.(middleware.WrapResponseWriter).Status() == http.StatusOK {
 		go func() {
 			mu.Lock()
@@ -116,5 +116,5 @@ func decisionHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	nr := cloneRequest(r, headers, query)
-	proxy.ServeHTTP(w, nr)
+	plexProxy.ServeHTTP(w, nr)
 }

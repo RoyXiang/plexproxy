@@ -13,6 +13,7 @@ import (
 
 	"github.com/RoyXiang/plexproxy/common"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/jrudio/go-plex-client"
 )
 
 func newReverseProxy(baseUrl string) *httputil.ReverseProxy {
@@ -116,9 +117,10 @@ func getPlexUserId(token string) int {
 	defer func() {
 		redisClient.Set(ctx, cacheKey, id, 0)
 	}()
-	user, err := plexApp.User(token)
-	if err == nil {
-		id = user.ID
+	if plexClient, err := plex.New(plexBaseUrl, token); err == nil {
+		if user, err := plexClient.MyAccount(); err == nil {
+			id = user.ID
+		}
 	}
 	return id
 }
