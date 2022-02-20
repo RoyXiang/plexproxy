@@ -23,25 +23,7 @@ func ListenToWebsocket(interrupt <-chan os.Signal) {
 		return
 	}
 	events := plex.NewNotificationEvents()
-	events.OnActivity(func(n plex.NotificationContainer) {
-		isUpdateEnded := false
-		for _, a := range n.ActivityNotification {
-			if a.Event == "ended" && a.Activity.Type == "library.update.section" {
-				isUpdateEnded = true
-				break
-			}
-		}
-		if isUpdateEnded {
-			mu.Lock()
-			defer mu.Unlock()
-
-			ctx := context.Background()
-			keys := redisClient.Keys(ctx, fmt.Sprintf("%s:*", cachePrefixMetadata)).Val()
-			if len(keys) > 0 {
-				redisClient.Del(ctx, keys...).Val()
-			}
-		}
-	})
+	events.OnActivity(wsOnActivity)
 
 	var wsWaitGroup sync.WaitGroup
 	var isReadClosed, isWriteClosed bool
@@ -91,6 +73,31 @@ socket:
 		case signal := <-interrupt:
 			closeWebsocket <- signal
 			break socket
+		}
+	}
+}
+
+func wsOnActivity(n plex.NotificationContainer) {
+	isMetadataChanged := false
+activity:
+	for _, a := range n.ActivityNotification {
+		if a.Event != "ended" {
+			continue
+		}
+		switch a.Activity.Type {
+		case "library.update.section", "library.refresh.items", "media.generate.intros":
+			isMetadataChanged = true
+			break activity
+		}
+	}
+	if isMetadataChanged {
+		mu.Lock()
+		defer mu.Unlock()
+
+		ctx := context.Background()
+		keys := redisClient.Keys(ctx, fmt.Sprintf("%s:*", cachePrefixMetadata)).Val()
+		if len(keys) > 0 {
+			redisClient.Del(ctx, keys...).Val()
 		}
 	}
 }
