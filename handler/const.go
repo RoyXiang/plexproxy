@@ -27,7 +27,7 @@ const (
 	cachePrefixPlex     = "plex"
 
 	cacheTtlDynamic  = time.Second * 5
-	cacheTtlMetadata = time.Minute * 30
+	cacheTtlMetadata = time.Hour * 24
 	cacheTtlStatic   = time.Hour
 
 	contentTypeAny = "*/*"

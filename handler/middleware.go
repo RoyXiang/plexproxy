@@ -122,7 +122,6 @@ func cacheMiddleware(next http.Handler) http.Handler {
 		var cacheKey string
 		ctx := context.Background()
 		info := r.Context().Value(cacheInfoCtxKey).(*cacheInfo)
-		cacheTtl := info.Ttl
 		if info.Prefix == cachePrefixMetadata {
 			mu.RLock()
 			defer mu.RUnlock()
@@ -148,7 +147,7 @@ func cacheMiddleware(next http.Handler) http.Handler {
 					w.WriteHeader(resp.StatusCode)
 					_, _ = w.Write(nw.Body.Bytes())
 					if resp.StatusCode == http.StatusOK {
-						writeToCache(cacheKey, resp, cacheTtl)
+						writeToCache(cacheKey, resp, info.Ttl)
 					}
 				}()
 			} else {
@@ -157,7 +156,7 @@ func cacheMiddleware(next http.Handler) http.Handler {
 					w.WriteHeader(resp.StatusCode)
 					_, _ = io.Copy(w, resp.Body)
 					if info.Prefix == cachePrefixStatic {
-						writeToCache(cacheKey, resp, cacheTtl)
+						writeToCache(cacheKey, resp, info.Ttl)
 					}
 				}()
 			}
@@ -181,7 +180,6 @@ func cacheMiddleware(next http.Handler) http.Handler {
 			if userId > 0 {
 				params.Set("X-Plex-User-Id", strconv.Itoa(userId))
 				params.Set(headerAccept, getAcceptContentType(r))
-				cacheTtl = cacheTtl * 2
 			} else {
 				params.Set(headerToken, token)
 			}
