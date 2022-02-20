@@ -164,7 +164,7 @@ func cacheMiddleware(next http.Handler) http.Handler {
 				w.Header()[k] = v
 			}
 		}()
-		if redisClient == nil || isStreamRequest(r) {
+		if isStreamRequest(r) {
 			return
 		}
 		params := r.URL.Query()

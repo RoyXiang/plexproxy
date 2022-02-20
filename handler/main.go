@@ -17,28 +17,31 @@ func NewRouter() http.Handler {
 	r.Use(trafficMiddleware)
 
 	r.Methods(http.MethodGet).PathPrefix("/web/").HandlerFunc(webHandler)
-	r.Path("/:/eventsource/notifications").HandlerFunc(handler)
 	r.Path("/:/timeline").HandlerFunc(timelineHandler)
-	r.Path("/:/websockets/notifications").HandlerFunc(handler)
-	r.PathPrefix("/library/parts/").HandlerFunc(handler)
 
-	staticRouter := r.Methods(http.MethodGet).Subrouter()
-	staticRouter.Use(staticMiddleware)
-	staticRouter.Path("/library/media/{key}/chapterImages/{id}").HandlerFunc(handler)
-	staticRouter.Path("/library/metadata/{key}/art/{id}").HandlerFunc(handler)
-	staticRouter.Path("/library/metadata/{key}/thumb/{id}").HandlerFunc(handler)
-	staticRouter.Path("/photo/:/transcode").HandlerFunc(handler)
+	if redisClient != nil {
+		r.Path("/:/eventsource/notifications").HandlerFunc(handler)
+		r.Path("/:/websockets/notifications").HandlerFunc(handler)
+		r.PathPrefix("/library/parts/").HandlerFunc(handler)
 
-	metadataRouter := r.Methods(http.MethodGet).PathPrefix("/library").Subrouter()
-	metadataRouter.Use(metadataMiddleware)
-	metadataRouter.PathPrefix("/collections/").HandlerFunc(handler)
-	metadataRouter.PathPrefix("/metadata/").HandlerFunc(handler)
-	metadataRouter.PathPrefix("/sections/").HandlerFunc(handler)
+		staticRouter := r.Methods(http.MethodGet).Subrouter()
+		staticRouter.Use(staticMiddleware)
+		staticRouter.Path("/library/media/{key}/chapterImages/{id}").HandlerFunc(handler)
+		staticRouter.Path("/library/metadata/{key}/art/{id}").HandlerFunc(handler)
+		staticRouter.Path("/library/metadata/{key}/thumb/{id}").HandlerFunc(handler)
+		staticRouter.Path("/photo/:/transcode").HandlerFunc(handler)
 
-	dynamicRouter := r.Methods(http.MethodGet).Subrouter()
-	dynamicRouter.Use(dynamicMiddleware)
-	dynamicRouter.Path("/video/:/transcode/universal/decision").HandlerFunc(decisionHandler)
-	dynamicRouter.PathPrefix("/").HandlerFunc(handler)
+		metadataRouter := r.Methods(http.MethodGet).PathPrefix("/library").Subrouter()
+		metadataRouter.Use(metadataMiddleware)
+		metadataRouter.PathPrefix("/collections/").HandlerFunc(handler)
+		metadataRouter.PathPrefix("/metadata/").HandlerFunc(handler)
+		metadataRouter.PathPrefix("/sections/").HandlerFunc(handler)
+
+		dynamicRouter := r.Methods(http.MethodGet).Subrouter()
+		dynamicRouter.Use(dynamicMiddleware)
+		dynamicRouter.Path("/video/:/transcode/universal/decision").HandlerFunc(decisionHandler)
+		dynamicRouter.PathPrefix("/").HandlerFunc(handler)
+	}
 
 	r.PathPrefix("/").HandlerFunc(handler)
 	return r
