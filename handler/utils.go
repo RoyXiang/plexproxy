@@ -43,6 +43,7 @@ func modifyResponse(resp *http.Response) error {
 	}
 	switch pieces[0] {
 	case "audio", "video":
+		resp.Header.Set(headerCacheControl, "no-cache")
 		resp.Header.Set(headerVary, "*")
 	case "image":
 		resp.Header.Set(headerCacheControl, "public, max-age=86400, s-maxage=259200")
