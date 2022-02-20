@@ -1,8 +1,6 @@
 package handler
 
 import (
-	"context"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -22,7 +20,6 @@ func NewRouter() http.Handler {
 	r.Path("/:/eventsource/notifications").HandlerFunc(handler)
 	r.Path("/:/timeline").HandlerFunc(timelineHandler)
 	r.Path("/:/websockets/notifications").HandlerFunc(handler)
-	r.Path("/library/sections/{id}/refresh").HandlerFunc(refreshHandler)
 	r.PathPrefix("/library/parts/").HandlerFunc(handler)
 
 	staticRouter := r.Methods(http.MethodGet).Subrouter()
@@ -66,22 +63,6 @@ func timelineHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	plexProxy.ServeHTTP(w, r)
-}
-
-func refreshHandler(w http.ResponseWriter, r *http.Request) {
-	plexProxy.ServeHTTP(w, r)
-	if redisClient != nil && w.(middleware.WrapResponseWriter).Status() == http.StatusOK {
-		go func() {
-			mu.Lock()
-			defer mu.Unlock()
-
-			ctx := context.Background()
-			keys := redisClient.Keys(ctx, fmt.Sprintf("%s:*", cachePrefixMetadata)).Val()
-			if len(keys) > 0 {
-				redisClient.Del(ctx, keys...).Val()
-			}
-		}()
-	}
 }
 
 func decisionHandler(w http.ResponseWriter, r *http.Request) {

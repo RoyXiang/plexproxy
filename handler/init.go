@@ -12,6 +12,7 @@ import (
 
 var (
 	plexBaseUrl string
+	plexToken   string
 
 	plexProxy   *httputil.ReverseProxy
 	plaxtProxy  *httputil.ReverseProxy
@@ -23,6 +24,8 @@ var (
 
 func init() {
 	plexBaseUrl = os.Getenv("PLEX_BASEURL")
+	plexToken = os.Getenv("PLEX_TOKEN")
+
 	plexProxy = newReverseProxy(plexBaseUrl)
 	if plexProxy == nil {
 		log.Fatalln("Please configure PLEX_BASEURL as a valid URL at first")
