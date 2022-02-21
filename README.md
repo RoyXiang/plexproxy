@@ -17,7 +17,7 @@ the performance of a low-end server.
 
 ## Install
 
-Download from [Releases](https://github.com/RoyXiang/plexproxy/releases), or build by yourself:
+Download from [Releases](https://github.com/RoyXiang/plexproxy/releases/latest), or build by yourself:
 
 ```sh
 env CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" github.com/RoyXiang/plexproxy@latest
@@ -33,10 +33,9 @@ env CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" github.com/RoyXiang/plex
      * It is used to receive notifications from Plex Media Server
      * Currently, notifications are used to flush the cache of metadata
    - `PLAXT_BASEURL` (Optional)
-     * Set it only if you run an instance of [plaxt](https://github.com/RoyXiang/goplaxt/releases)
+     * Set it only if you run an instance of [plaxt](https://github.com/RoyXiang/goplaxt/releases) (forked version)
      * Or, you can set it to [my hosted one](https://plaxt.royxiang.me), e.g. `https://plaxt.royxiang.me`
-     * Currently, webhooks from Plex Media Server do not contain the playback progress of a media item, setting this would
-       sync it
+     * Currently, it is finally used to sync the realtime playback progress with [Trakt](https://trakt.tv/)
 2. Run the program
 
 ## TODO
