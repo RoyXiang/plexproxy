@@ -80,7 +80,6 @@ socket:
 
 func wsOnActivity(n plex.NotificationContainer) {
 	isMetadataChanged := false
-activity:
 	for _, a := range n.ActivityNotification {
 		if a.Event != "ended" {
 			continue
@@ -88,10 +87,9 @@ activity:
 		switch a.Activity.Type {
 		case "library.update.section", "library.refresh.items", "media.generate.intros":
 			isMetadataChanged = true
-			break activity
 		}
 	}
-	if isMetadataChanged {
+	if isMetadataChanged && redisClient != nil {
 		mu.Lock()
 		defer mu.Unlock()
 
