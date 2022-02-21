@@ -13,12 +13,7 @@ import (
 )
 
 func ListenToWebsocket(interrupt <-chan os.Signal) {
-	if plexToken == "" {
-		<-interrupt
-		return
-	}
-	plexClient, err := plex.New(plexBaseUrl, plexToken)
-	if err != nil {
+	if !plexClient.IsTokenSet() {
 		<-interrupt
 		return
 	}
@@ -38,8 +33,7 @@ socket:
 		select {
 		case <-reconnect:
 			// wait for Plex server until it is online
-			_, err = plexClient.GetLibraries()
-			if err != nil {
+			if !plexClient.TestReachability() {
 				time.Sleep(time.Second)
 				reconnect <- struct{}{}
 				break
