@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -11,26 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/RoyXiang/plexproxy/common"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/jrudio/go-plex-client"
 )
-
-func newReverseProxy(baseUrl string) *httputil.ReverseProxy {
-	if baseUrl == "" {
-		return nil
-	}
-	u, err := url.Parse(baseUrl)
-	if err != nil {
-		return nil
-	}
-	p := httputil.NewSingleHostReverseProxy(u)
-	p.FlushInterval = -1
-	p.ErrorLog = common.GetLogger()
-	p.ModifyResponse = modifyResponse
-	p.ErrorHandler = proxyErrorHandler
-	return p
-}
 
 func modifyResponse(resp *http.Response) error {
 	contentType := resp.Header.Get(headerContentType)
@@ -106,24 +87,6 @@ func isStreamRequest(r *http.Request) bool {
 		return true
 	}
 	return false
-}
-
-func getPlexUserId(token string) int {
-	ctx := context.Background()
-	cacheKey := fmt.Sprintf("%s:token:%s", cachePrefixPlex, token)
-	id, err := redisClient.Get(ctx, cacheKey).Int()
-	if err == nil {
-		return id
-	}
-	defer func() {
-		redisClient.Set(ctx, cacheKey, id, 0)
-	}()
-	if plexClient, err := plex.New(plexBaseUrl, token); err == nil {
-		if user, err := plexClient.MyAccount(); err == nil {
-			id = user.ID
-		}
-	}
-	return id
 }
 
 func getAcceptContentType(r *http.Request) string {

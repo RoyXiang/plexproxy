@@ -1,13 +1,45 @@
 package handler
 
 import (
+	"log"
 	"net/http"
-	"net/http/httptest"
-	"strings"
+	"os"
+	"sync"
 
+	"github.com/RoyXiang/plexproxy/common"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/mux"
 )
+
+var (
+	plexClient  *PlexClient
+	redisClient *redis.Client
+
+	mu sync.RWMutex
+	ml common.MultipleLock
+)
+
+func init() {
+	plexClient = NewPlexClient(PlexConfig{
+		BaseUrl:      os.Getenv("PLEX_BASEURL"),
+		Token:        os.Getenv("PLEX_TOKEN"),
+		PlaxtBaseUrl: os.Getenv("PLAXT_BASEURL"),
+	})
+	if plexClient == nil {
+		log.Fatalln("Please configure PLEX_BASEURL as a valid URL at first")
+	}
+
+	redisUrl := os.Getenv("REDIS_URL")
+	if redisUrl != "" {
+		options, err := redis.ParseURL(redisUrl)
+		if err == nil {
+			redisClient = redis.NewClient(options)
+		}
+	}
+
+	ml = common.NewMultipleLock()
+}
 
 func NewRouter() http.Handler {
 	r := mux.NewRouter()
@@ -16,89 +48,30 @@ func NewRouter() http.Handler {
 	r.Use(middleware.Recoverer)
 	r.Use(trafficMiddleware)
 
-	r.Methods(http.MethodGet).PathPrefix("/web/").HandlerFunc(webHandler)
-	r.Path("/:/timeline").HandlerFunc(timelineHandler)
-
 	if redisClient != nil {
-		r.Path("/:/eventsource/notifications").HandlerFunc(handler)
-		r.Path("/:/websockets/notifications").HandlerFunc(handler)
-		r.PathPrefix("/library/parts/").HandlerFunc(handler)
+		r.Path("/:/eventsource/notifications").Handler(plexClient)
+		r.Path("/:/timeline").Handler(plexClient)
+		r.Path("/:/websockets/notifications").Handler(plexClient)
+		r.PathPrefix("/library/parts/").Handler(plexClient)
 
 		staticRouter := r.Methods(http.MethodGet).Subrouter()
 		staticRouter.Use(staticMiddleware)
-		staticRouter.Path("/library/media/{key}/chapterImages/{id}").HandlerFunc(handler)
-		staticRouter.Path("/library/metadata/{key}/art/{id}").HandlerFunc(handler)
-		staticRouter.Path("/library/metadata/{key}/thumb/{id}").HandlerFunc(handler)
-		staticRouter.Path("/photo/:/transcode").HandlerFunc(handler)
+		staticRouter.Path("/library/media/{key}/chapterImages/{id}").Handler(plexClient)
+		staticRouter.Path("/library/metadata/{key}/art/{id}").Handler(plexClient)
+		staticRouter.Path("/library/metadata/{key}/thumb/{id}").Handler(plexClient)
+		staticRouter.Path("/photo/:/transcode").Handler(plexClient)
 
 		metadataRouter := r.Methods(http.MethodGet).PathPrefix("/library").Subrouter()
 		metadataRouter.Use(metadataMiddleware)
-		metadataRouter.PathPrefix("/collections/").HandlerFunc(handler)
-		metadataRouter.PathPrefix("/metadata/").HandlerFunc(handler)
-		metadataRouter.PathPrefix("/sections/").HandlerFunc(handler)
+		metadataRouter.PathPrefix("/collections/").Handler(plexClient)
+		metadataRouter.PathPrefix("/metadata/").Handler(plexClient)
+		metadataRouter.PathPrefix("/sections/").Handler(plexClient)
 
 		dynamicRouter := r.Methods(http.MethodGet).Subrouter()
 		dynamicRouter.Use(dynamicMiddleware)
-		dynamicRouter.Path("/video/:/transcode/universal/decision").HandlerFunc(decisionHandler)
-		dynamicRouter.PathPrefix("/").HandlerFunc(handler)
+		dynamicRouter.PathPrefix("/").Handler(plexClient)
 	}
 
-	r.PathPrefix("/").HandlerFunc(handler)
+	r.PathPrefix("/").Handler(plexClient)
 	return r
-}
-
-func handler(w http.ResponseWriter, r *http.Request) {
-	plexProxy.ServeHTTP(w, r)
-}
-
-func webHandler(w http.ResponseWriter, r *http.Request) {
-	http.Redirect(w, r, "https://app.plex.tv/desktop", http.StatusMovedPermanently)
-}
-
-func timelineHandler(w http.ResponseWriter, r *http.Request) {
-	if plaxtProxy != nil {
-		if client := r.Header.Get(headerClientIdentity); client != "" {
-			nr, _ := http.NewRequest(http.MethodGet, r.URL.String(), nil)
-			nr.Header.Set(headerClientIdentity, client)
-			go func() {
-				plaxtProxy.ServeHTTP(httptest.NewRecorder(), nr)
-			}()
-		}
-	}
-	plexProxy.ServeHTTP(w, r)
-}
-
-func decisionHandler(w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query()
-	query.Del("maxVideoBitrate")
-	query.Del("videoBitrate")
-	query.Set("autoAdjustQuality", "0")
-	query.Set("directPlay", "1")
-	query.Set("directStream", "1")
-	query.Set("directStreamAudio", "1")
-	query.Set("videoQuality", "100")
-	query.Set("videoResolution", "4096x2160")
-
-	protocol := query.Get("protocol")
-	switch protocol {
-	case "http":
-		query.Set("copyts", "0")
-		query.Set("hasMDE", "0")
-	}
-
-	headers := r.Header
-	if extraProfile := headers.Get(headerExtraProfile); extraProfile != "" {
-		params := strings.Split(extraProfile, "+")
-		i := 0
-		for _, value := range params {
-			if !strings.HasPrefix(value, "add-limitation") {
-				params[i] = value
-				i++
-			}
-		}
-		headers.Set(headerExtraProfile, strings.Join(params[:i], "+"))
-	}
-
-	nr := cloneRequest(r, headers, query)
-	plexProxy.ServeHTTP(w, nr)
 }

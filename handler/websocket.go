@@ -13,12 +13,7 @@ import (
 )
 
 func ListenToWebsocket(interrupt <-chan os.Signal) {
-	if plexToken == "" {
-		<-interrupt
-		return
-	}
-	plexClient, err := plex.New(plexBaseUrl, plexToken)
-	if err != nil {
+	if !plexClient.IsTokenSet() {
 		<-interrupt
 		return
 	}
@@ -31,19 +26,17 @@ func ListenToWebsocket(interrupt <-chan os.Signal) {
 	closeWebsocket := make(chan os.Signal, 1)
 	reconnect := make(chan struct{}, 1)
 	reconnect <- struct{}{}
+	logger.Println("Connecting to Plex server through websocket...")
 
 socket:
 	for {
 		select {
 		case <-reconnect:
-			logger.Println("Connecting to Plex server through websocket...")
-			for {
-				// wait for Plex server until it is online
-				_, err = plexClient.GetLibraries()
-				if err == nil {
-					break
-				}
+			// wait for Plex server until it is online
+			if !plexClient.TestReachability() {
 				time.Sleep(time.Second)
+				reconnect <- struct{}{}
+				break
 			}
 
 			wsWaitGroup.Add(2)
@@ -64,8 +57,10 @@ socket:
 					}
 				}
 			})
+			logger.Println("Receiving notifications from Plex server through websocket...")
 			go func() {
 				wsWaitGroup.Wait()
+				logger.Println("Websocket closed unexpectedly, reconnecting...")
 				time.Sleep(time.Second)
 				isReadClosed, isWriteClosed = false, false
 				reconnect <- struct{}{}
@@ -79,7 +74,6 @@ socket:
 
 func wsOnActivity(n plex.NotificationContainer) {
 	isMetadataChanged := false
-activity:
 	for _, a := range n.ActivityNotification {
 		if a.Event != "ended" {
 			continue
@@ -87,10 +81,9 @@ activity:
 		switch a.Activity.Type {
 		case "library.update.section", "library.refresh.items", "media.generate.intros":
 			isMetadataChanged = true
-			break activity
 		}
 	}
-	if isMetadataChanged {
+	if isMetadataChanged && redisClient != nil {
 		mu.Lock()
 		defer mu.Unlock()
 

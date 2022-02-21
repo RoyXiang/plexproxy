@@ -176,7 +176,7 @@ func cacheMiddleware(next http.Handler) http.Handler {
 			if token == "" {
 				return
 			}
-			userId := getPlexUserId(token)
+			userId := plexClient.GetUserId(token)
 			if userId > 0 {
 				params.Set("X-Plex-User-Id", strconv.Itoa(userId))
 				params.Set(headerAccept, getAcceptContentType(r))
