@@ -32,7 +32,14 @@ func normalizeMiddleware(next http.Handler) http.Handler {
 					if err == nil {
 						switch u.Hostname() {
 						case "", "127.0.0.1":
-							params.Add(name, u.EscapedPath())
+							query := u.Query()
+							for k := range query {
+								if strings.HasPrefix(k, headerPlexPrefix) {
+									query.Del(k)
+								}
+							}
+							u.RawQuery = query.Encode()
+							params.Add(name, u.RequestURI())
 						default:
 							params.Add(name, u.String())
 						}
