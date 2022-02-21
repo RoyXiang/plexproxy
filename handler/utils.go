@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -88,18 +87,6 @@ func isStreamRequest(r *http.Request) bool {
 		return true
 	}
 	return false
-}
-
-func getPlexUserId(token string) int {
-	ctx := context.Background()
-	cacheKey := fmt.Sprintf("%s:token:%s", cachePrefixPlex, token)
-	id, err := redisClient.Get(ctx, cacheKey).Int()
-	if err == nil {
-		return id
-	}
-	id = plexClient.GetUserId(token)
-	redisClient.Set(ctx, cacheKey, id, 0)
-	return id
 }
 
 func getAcceptContentType(r *http.Request) string {

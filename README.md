@@ -6,7 +6,7 @@ the performance of a low-end server.
 ## Features
 
 1. Traffic control by devices
-2. Response caching
+2. Cross-device response caching by client type
 3. Disable transcoding by forcing direct play/stream
 4. Redirect web app to [official one](https://app.plex.tv/desktop)
 

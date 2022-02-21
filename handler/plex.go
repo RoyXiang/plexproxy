@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httputil"
@@ -97,17 +98,58 @@ func (c *PlexClient) SubscribeToNotifications(events *plex.NotificationEvents, i
 	c.client.SubscribeToNotifications(events, interrupt, fn)
 }
 
-func (c *PlexClient) GetUserId(token string) int {
+func (c *PlexClient) GetUserId(token string) (id int) {
+	var err error
+	ctx := context.Background()
+	cacheKey := fmt.Sprintf("%s:token:%s", cachePrefixPlex, token)
+	id, err = redisClient.Get(ctx, cacheKey).Int()
+	if err == nil {
+		return id
+	}
+
+	response := c.GetSharedServers()
+	for _, friend := range response.Friends {
+		key := fmt.Sprintf("%s:token:%s", cachePrefixPlex, friend.AccessToken)
+		redisClient.Set(ctx, key, friend.UserId, 0)
+		if friend.AccessToken == token {
+			id = friend.UserId
+		}
+	}
+	if id > 0 {
+		return
+	}
+
+	user := c.GetAccountInfo(token)
+	if user.ID > 0 {
+		redisClient.Set(ctx, cacheKey, user.ID, 0)
+		id = user.ID
+	}
+	return
+}
+
+func (c *PlexClient) GetSharedServers() (response plex.SharedServersResponse) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	identity, err := c.client.GetServerIdentity()
+	if err != nil {
+		return
+	}
+	response, _ = c.client.GetSharedServers(identity.MediaContainer.MachineIdentifier)
+	return
+}
+
+func (c *PlexClient) GetAccountInfo(token string) (user plex.UserPlexTV) {
 	c.mu.Lock()
-	originalToken := c.client.Token
+	originalToken := token
 	defer func() {
 		c.client.Token = originalToken
 		c.mu.Unlock()
 	}()
 
 	c.client.Token = token
-	user, _ := c.client.MyAccount()
-	return user.ID
+	user, _ = c.client.MyAccount()
+	return
 }
 
 func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request) {
