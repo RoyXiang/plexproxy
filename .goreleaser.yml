@@ -1,0 +1,15 @@
+# .goreleaser.yml
+build:
+  env:
+    - CGO_ENABLED=0
+  ldflags:
+    - -s -w
+  flags:
+    - -trimpath
+
+archives:
+  -
+    format: binary
+
+release:
+  prerelease: auto

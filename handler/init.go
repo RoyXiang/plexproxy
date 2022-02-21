@@ -2,28 +2,43 @@ package handler
 
 import (
 	"log"
-	"net/http"
 	"net/http/httputil"
-	"net/url"
 	"os"
+	"sync"
+
+	"github.com/RoyXiang/plexproxy/common"
+	"github.com/go-redis/redis/v8"
 )
 
 var (
-	proxy *httputil.ReverseProxy
+	plexBaseUrl string
+	plexToken   string
+
+	plexProxy   *httputil.ReverseProxy
+	plaxtProxy  *httputil.ReverseProxy
+	redisClient *redis.Client
+
+	mu sync.RWMutex
+	ml common.MultipleLock
 )
 
 func init() {
-	baseUrl := os.Getenv("PLEX_BASEURL")
-	if baseUrl == "" {
-		log.Fatalln("Please configure PLEX_BASEURL at first")
-	}
-	u, err := url.Parse(baseUrl)
-	if err != nil {
-		log.Fatalln("Please ensure PLEX_BASEURL is a valid URL")
-	}
-	proxy = httputil.NewSingleHostReverseProxy(u)
-}
+	plexBaseUrl = os.Getenv("PLEX_BASEURL")
+	plexToken = os.Getenv("PLEX_TOKEN")
 
-func Handler(w http.ResponseWriter, r *http.Request) {
-	proxy.ServeHTTP(w, r)
+	plexProxy = newReverseProxy(plexBaseUrl)
+	if plexProxy == nil {
+		log.Fatalln("Please configure PLEX_BASEURL as a valid URL at first")
+	}
+	plaxtProxy = newReverseProxy(os.Getenv("PLAXT_BASEURL"))
+
+	redisUrl := os.Getenv("REDIS_URL")
+	if redisUrl != "" {
+		options, err := redis.ParseURL(redisUrl)
+		if err == nil {
+			redisClient = redis.NewClient(options)
+		}
+	}
+
+	ml = common.NewMultipleLock()
 }
