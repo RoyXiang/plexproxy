@@ -213,6 +213,9 @@ func (c *PlexClient) ScrobbleToPlaxt(notification plex.PlaySessionStateNotificat
 				Id: guid.Get("id").String(),
 			})
 		}
+		session.guids = externalGuids
+	} else {
+		externalGuids = session.guids
 	}
 
 	var event string

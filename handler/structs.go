@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/jrudio/go-plex-client"
+	"github.com/xanderstrike/plexhooks"
 )
 
 type ctxKeyType struct {
@@ -19,5 +20,6 @@ type sessionStatus int64
 
 type sessionData struct {
 	metadata plex.Metadata
+	guids    []plexhooks.ExternalGuid
 	status   sessionStatus
 }
