@@ -32,10 +32,9 @@ env CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" github.com/RoyXiang/plex
    - `PLEX_TOKEN` (Optional, if you need it, see [here](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/))
      * It is used to receive notifications from Plex Media Server
      * Currently, notifications are used to flush the cache of metadata
-   - `PLAXT_BASEURL` (Optional)
-     * Set it only if you run an instance of [plaxt](https://github.com/RoyXiang/goplaxt/releases) (forked version)
-     * Or, you can set it to [my hosted one](https://plaxt.royxiang.me), e.g. `https://plaxt.royxiang.me`
-     * Currently, it is finally used to sync the realtime playback progress with [Trakt](https://trakt.tv/)
+   - `PLAXT_URL` (Optional, e.g. `https://plaxt.astandke.com/api?id=generate-your-own-silly`)
+     * Set it if you run an instance of [plaxt](https://github.com/XanderStrike/goplaxt)
+     * Or, you can set it to [the official one](https://plaxt.astandke.com/)
 2. Run the program
 
 ## TODO

@@ -17,6 +17,7 @@ func ListenToWebsocket(interrupt <-chan os.Signal) {
 	}
 	events := plex.NewNotificationEvents()
 	events.OnActivity(wsOnActivity)
+	events.OnPlaying(wsOnPlaying)
 
 	var wsWaitGroup sync.WaitGroup
 	logger := common.GetLogger()
@@ -70,5 +71,11 @@ func wsOnActivity(n plex.NotificationContainer) {
 	}
 	if isMetadataChanged {
 		clearCachedMetadata()
+	}
+}
+
+func wsOnPlaying(n plex.NotificationContainer) {
+	for _, session := range n.PlaySessionStateNotification {
+		go plexClient.ScrobbleToPlaxt(session)
 	}
 }
