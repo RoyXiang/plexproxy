@@ -118,13 +118,21 @@ func writeToCache(key string, resp *http.Response, ttl time.Duration) {
 	redisClient.Set(context.Background(), key, b, ttl)
 }
 
-func clearCachedMetadata() {
+func clearCachedMetadata(token string) {
 	if redisClient == nil {
 		return
 	}
 
 	mu.Lock()
 	defer mu.Unlock()
+
+	pattern := fmt.Sprintf("%s:*", cachePrefixMetadata)
+	if token != "" {
+		userId := plexClient.GetUserId(token)
+		if userId > 0 {
+			pattern = fmt.Sprintf("%s%s=%d*", pattern, headerUserId, userId)
+		}
+	}
 
 	ctx := context.Background()
 	keys := redisClient.Keys(ctx, fmt.Sprintf("%s:*", cachePrefixMetadata)).Val()

@@ -92,7 +92,7 @@ func (c *PlexClient) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if w.(middleware.WrapResponseWriter).Status() == http.StatusOK {
 		switch path {
 		case "/:/scrobble", "/:/unscrobble":
-			go clearCachedMetadata()
+			go clearCachedMetadata(r.Header.Get(headerToken))
 		case "/:/timeline":
 			go c.syncTimelineWithPlaxt(r)
 		}
@@ -272,7 +272,7 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request) {
 	} else if event == "media.scrobble" {
 		session.status = sessionWatched
 		sessionChanged = true
-		go clearCachedMetadata()
+		go clearCachedMetadata(r.Header.Get(headerToken))
 	} else if session.status == sessionUnplayed {
 		session.status = sessionPlaying
 		sessionChanged = true
