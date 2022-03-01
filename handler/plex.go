@@ -20,7 +20,6 @@ import (
 	"github.com/RoyXiang/plexproxy/common"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jrudio/go-plex-client"
-	"github.com/tidwall/gjson"
 	"github.com/xanderstrike/plexhooks"
 )
 
@@ -231,11 +230,9 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request) {
 		if metadata == nil {
 			return
 		}
-		guidValue := gjson.Get(string(metadata), "MediaContainer.Metadata.0.Guid")
-		guidResult := guidValue.Array()
-		for _, guid := range guidResult {
+		for _, guid := range metadata.MediaContainer.Metadata[0].AltGUIDs {
 			externalGuids = append(externalGuids, plexhooks.ExternalGuid{
-				Id: guid.Get("id").String(),
+				Id: guid.ID,
 			})
 		}
 		session.guids = externalGuids
@@ -390,7 +387,7 @@ func (c *PlexClient) getPlayerSession(playerIdentifier, ratingKey string) (sessi
 	return
 }
 
-func (c *PlexClient) getMetadata(ratingKey string) []byte {
+func (c *PlexClient) getMetadata(ratingKey string) *plex.MediaMetadata {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -409,23 +406,34 @@ func (c *PlexClient) getMetadata(ratingKey string) []byte {
 
 	var resp *http.Response
 	cacheKey := fmt.Sprintf("%s:%s?%s=%s&%s=%d", cachePrefixMetadata, path, headerAccept, "json", headerUserId, userId)
+	isFromCache := false
 	if redisClient != nil {
 		b, err := redisClient.Get(context.Background(), cacheKey).Bytes()
 		if err == nil {
 			reader := bufio.NewReader(bytes.NewReader(b))
 			resp, _ = http.ReadResponse(reader, req)
+			isFromCache = true
 		}
 	}
 	if resp == nil {
 		resp, err = c.client.HTTPClient.Do(req)
-		writeToCache(cacheKey, resp, cacheTtlMetadata)
+		if err != nil {
+			return nil
+		}
 	}
 	defer func(Body io.ReadCloser) {
 		_ = Body.Close()
 	}(resp.Body)
 
-	bodyBytes, _ := io.ReadAll(resp.Body)
-	return bodyBytes
+	if resp.StatusCode != http.StatusOK {
+		return nil
+	} else if !isFromCache {
+		writeToCache(cacheKey, resp, cacheTtlMetadata)
+	}
+
+	var result plex.MediaMetadata
+	_ = json.NewDecoder(resp.Body).Decode(&result)
+	return &result
 }
 
 func (c *PlexClient) disableTranscoding(r *http.Request) *http.Request {
