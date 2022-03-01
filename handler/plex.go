@@ -12,6 +12,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -77,6 +78,8 @@ func NewPlexClient(config PlexConfig) *PlexClient {
 func (c *PlexClient) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.EscapedPath()
 	switch {
+	case path == "/:/timeline":
+		defer c.syncTimelineWithPlaxt(r)
 	case path == "/video/:/transcode/universal/decision":
 		r = c.disableTranscoding(r)
 	case strings.HasPrefix(path, "/web/"):
@@ -170,27 +173,40 @@ func (c *PlexClient) GetAccountInfo(token string) (user plex.UserPlexTV) {
 	return
 }
 
-func (c *PlexClient) ScrobbleToPlaxt(notification plex.PlaySessionStateNotification) {
+func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request) {
 	if c.plaxtUrl == "" {
 		return
 	}
 
-	lockKey := fmt.Sprintf("plex:session:%s", notification.SessionKey)
+	clientUuid := r.Header.Get(headerClientIdentity)
+	ratingKey := r.URL.Query().Get("ratingKey")
+	playbackTime := r.URL.Query().Get("time")
+	state := r.URL.Query().Get("state")
+	if clientUuid == "" || ratingKey == "" || playbackTime == "" || state == "" {
+		return
+	}
+
+	var viewOffset int
+	var err error
+	if viewOffset, err = strconv.Atoi(playbackTime); err != nil {
+		return
+	}
+
+	sessionKey := c.getPlayerSession(clientUuid, ratingKey)
+	if sessionKey == "" {
+		return
+	}
+	lockKey := fmt.Sprintf("plex:session:%s", sessionKey)
 	if ml.TryLock(lockKey, time.Second) {
 		defer ml.Unlock(lockKey)
 	} else {
 		return
 	}
+	session := c.sessions[sessionKey]
+	sessionChanged := false
 
 	serverIdentifier := c.getServerIdentifier()
 	if serverIdentifier == "" {
-		return
-	}
-	var session sessionData
-	sessionChanged := false
-	if c.getPlayerSession(notification.SessionKey) {
-		session = c.sessions[notification.SessionKey]
-	} else {
 		return
 	}
 	var section plex.Directory
@@ -203,7 +219,7 @@ func (c *PlexClient) ScrobbleToPlaxt(notification plex.PlaySessionStateNotificat
 
 	var externalGuids []plexhooks.ExternalGuid
 	if session.guids == nil {
-		metadata := c.getMetadata(notification.RatingKey)
+		metadata := c.getMetadata(ratingKey)
 		if metadata == nil {
 			return
 		}
@@ -221,8 +237,8 @@ func (c *PlexClient) ScrobbleToPlaxt(notification plex.PlaySessionStateNotificat
 	}
 
 	var event string
-	progress := int(math.Round(float64(notification.ViewOffset) / float64(session.metadata.Duration) * 100.0))
-	switch notification.State {
+	progress := int(math.Round(float64(viewOffset) / float64(session.metadata.Duration) * 100.0))
+	switch state {
 	case "playing":
 		if session.status == sessionPlaying {
 			event = "media.resume"
@@ -252,8 +268,11 @@ func (c *PlexClient) ScrobbleToPlaxt(notification plex.PlaySessionStateNotificat
 		session.status = sessionPlaying
 		sessionChanged = true
 	}
-	if sessionChanged {
-		c.sessions[notification.SessionKey] = session
+	if sessionChanged || event != session.lastEvent {
+		session.lastEvent = event
+		c.sessions[sessionKey] = session
+	} else {
+		return
 	}
 
 	webhook := plexhooks.PlexResponse{
@@ -277,7 +296,7 @@ func (c *PlexClient) ScrobbleToPlaxt(notification plex.PlaySessionStateNotificat
 			Title:              session.metadata.Title,
 			Year:               session.metadata.Year,
 			Duration:           session.metadata.Duration,
-			ViewOffset:         int(notification.ViewOffset),
+			ViewOffset:         viewOffset,
 		},
 	}
 	b, _ := json.Marshal(webhook)
@@ -321,10 +340,12 @@ func (c *PlexClient) getLibrarySection(sectionKey string) (isFound bool) {
 	return
 }
 
-func (c *PlexClient) getPlayerSession(sessionKey string) (isFound bool) {
-	if _, ok := c.sessions[sessionKey]; ok {
-		isFound = true
-		return
+func (c *PlexClient) getPlayerSession(playerIdentifier, ratingKey string) (sessionKey string) {
+	for key, data := range c.sessions {
+		if data.metadata.Player.MachineIdentifier == playerIdentifier && data.metadata.RatingKey == ratingKey {
+			sessionKey = key
+			return
+		}
 	}
 
 	c.mu.RLock()
@@ -345,8 +366,8 @@ func (c *PlexClient) getPlayerSession(sessionKey string) (isFound bool) {
 				status:   sessionUnplayed,
 			}
 		}
-		if sessionKey == session.SessionKey {
-			isFound = true
+		if session.Player.MachineIdentifier == playerIdentifier && session.RatingKey == ratingKey {
+			sessionKey = session.SessionKey
 		}
 	}
 	for key := range c.sessions {

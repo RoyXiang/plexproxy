@@ -7,6 +7,7 @@ import (
 const (
 	headerPlexPrefix     = "X-Plex-"
 	headerCacheStatus    = "X-Plex-Cache-Status"
+	headerClientIdentity = "X-Plex-Client-Identifier"
 	headerExtraProfile   = "X-Plex-Client-Profile-Extra"
 	headerPageSize       = "X-Plex-Container-Size"
 	headerPageStart      = "X-Plex-Container-Start"

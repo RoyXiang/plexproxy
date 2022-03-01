@@ -19,7 +19,8 @@ type cacheInfo struct {
 type sessionStatus int64
 
 type sessionData struct {
-	metadata plex.Metadata
-	guids    []plexhooks.ExternalGuid
-	status   sessionStatus
+	metadata  plex.Metadata
+	guids     []plexhooks.ExternalGuid
+	lastEvent string
+	status    sessionStatus
 }
