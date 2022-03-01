@@ -187,6 +187,7 @@ func (c *PlexClient) ScrobbleToPlaxt(notification plex.PlaySessionStateNotificat
 		return
 	}
 	var session sessionData
+	sessionChanged := false
 	if c.getPlayerSession(notification.SessionKey) {
 		session = c.sessions[notification.SessionKey]
 	} else {
@@ -201,7 +202,7 @@ func (c *PlexClient) ScrobbleToPlaxt(notification plex.PlaySessionStateNotificat
 	}
 
 	var externalGuids []plexhooks.ExternalGuid
-	if session.status == sessionUnplayed && strings.HasPrefix(session.metadata.GUID, "plex://") {
+	if session.guids == nil {
 		metadata := c.getMetadata(notification.RatingKey)
 		if metadata == nil {
 			return
@@ -214,6 +215,7 @@ func (c *PlexClient) ScrobbleToPlaxt(notification plex.PlaySessionStateNotificat
 			})
 		}
 		session.guids = externalGuids
+		sessionChanged = true
 	} else {
 		externalGuids = session.guids
 	}
@@ -244,10 +246,13 @@ func (c *PlexClient) ScrobbleToPlaxt(notification plex.PlaySessionStateNotificat
 		return
 	} else if event == "media.scrobble" {
 		session.status = sessionWatched
-		c.sessions[notification.SessionKey] = session
+		sessionChanged = true
 		go clearCachedMetadata()
 	} else if session.status == sessionUnplayed {
 		session.status = sessionPlaying
+		sessionChanged = true
+	}
+	if sessionChanged {
 		c.sessions[notification.SessionKey] = session
 	}
 
@@ -336,6 +341,7 @@ func (c *PlexClient) getPlayerSession(sessionKey string) (isFound bool) {
 		if _, ok := c.sessions[session.SessionKey]; !ok {
 			c.sessions[session.SessionKey] = sessionData{
 				metadata: session,
+				guids:    nil,
 				status:   sessionUnplayed,
 			}
 		}
