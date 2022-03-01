@@ -51,15 +51,9 @@ func NewRouter() http.Handler {
 	r.Use(trafficMiddleware)
 
 	if redisClient != nil {
-		r.Path("/:/eventsource/notifications").Handler(plexClient)
-		r.Path("/:/timeline").Handler(plexClient)
-		r.Path("/:/websockets/notifications").Handler(plexClient)
+		// bypass cache
+		r.PathPrefix("/:/").Handler(plexClient)
 		r.PathPrefix("/library/parts/").Handler(plexClient)
-
-		scrobbleRouter := r.NewRoute().Subrouter()
-		scrobbleRouter.Use(clearCacheMiddleware)
-		scrobbleRouter.Path("/:/scrobble").Handler(plexClient)
-		scrobbleRouter.Path("/:/unscrobble").Handler(plexClient)
 
 		staticRouter := r.Methods(http.MethodGet).Subrouter()
 		staticRouter.Use(staticMiddleware)

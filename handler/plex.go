@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/RoyXiang/plexproxy/common"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jrudio/go-plex-client"
 	"github.com/tidwall/gjson"
 	"github.com/xanderstrike/plexhooks"
@@ -78,8 +79,6 @@ func NewPlexClient(config PlexConfig) *PlexClient {
 func (c *PlexClient) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.EscapedPath()
 	switch {
-	case path == "/:/timeline":
-		defer c.syncTimelineWithPlaxt(r)
 	case path == "/video/:/transcode/universal/decision":
 		r = c.disableTranscoding(r)
 	case strings.HasPrefix(path, "/web/"):
@@ -90,6 +89,15 @@ func (c *PlexClient) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	c.proxy.ServeHTTP(w, r)
+
+	if w.(middleware.WrapResponseWriter).Status() == http.StatusOK {
+		switch path {
+		case "/:/scrobble", "/:/unscrobble":
+			go clearCachedMetadata()
+		case "/:/timeline":
+			go c.syncTimelineWithPlaxt(r)
+		}
+	}
 }
 
 func (c *PlexClient) IsTokenSet() bool {
