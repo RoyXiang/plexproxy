@@ -54,6 +54,11 @@ func NewRouter() http.Handler {
 		r.Path("/:/websockets/notifications").Handler(plexClient)
 		r.PathPrefix("/library/parts/").Handler(plexClient)
 
+		scrobbleRouter := r.NewRoute().Subrouter()
+		scrobbleRouter.Use(clearCacheMiddleware)
+		scrobbleRouter.Path("/:/scrobble").Handler(plexClient)
+		scrobbleRouter.Path("/:/unscrobble").Handler(plexClient)
+
 		staticRouter := r.Methods(http.MethodGet).Subrouter()
 		staticRouter.Use(staticMiddleware)
 		staticRouter.Path("/library/media/{key}/chapterImages/{id}").Handler(plexClient)

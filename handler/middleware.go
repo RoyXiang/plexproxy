@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/go-chi/chi/v5/middleware"
 )
 
 var (
@@ -199,6 +201,16 @@ func cacheMiddleware(next http.Handler) http.Handler {
 			cacheKey = fmt.Sprintf("%s:%s?%s", info.Prefix, r.URL.EscapedPath(), params.Encode())
 		} else {
 			cacheKey = fmt.Sprintf("%s:%s", info.Prefix, r.URL.EscapedPath())
+		}
+	})
+}
+
+func clearCacheMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r)
+
+		if w.(middleware.WrapResponseWriter).Status() == http.StatusOK {
+			clearCachedMetadata()
 		}
 	})
 }

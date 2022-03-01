@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -115,4 +116,19 @@ func writeToCache(key string, resp *http.Response, ttl time.Duration) {
 		return
 	}
 	redisClient.Set(context.Background(), key, b, ttl)
+}
+
+func clearCachedMetadata() {
+	if redisClient == nil {
+		return
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	ctx := context.Background()
+	keys := redisClient.Keys(ctx, fmt.Sprintf("%s:*", cachePrefixMetadata)).Val()
+	if len(keys) > 0 {
+		redisClient.Del(ctx, keys...).Val()
+	}
 }
