@@ -241,7 +241,11 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request) {
 	switch state {
 	case "playing":
 		if session.status == sessionPlaying {
-			event = "media.resume"
+			if progress >= 100 {
+				event = "media.scrobble"
+			} else {
+				event = "media.resume"
+			}
 		} else {
 			event = "media.play"
 		}
@@ -258,7 +262,7 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request) {
 			event = "media.stop"
 		}
 	}
-	if event == "" {
+	if event == "" || session.status == sessionWatched {
 		return
 	} else if event == "media.scrobble" {
 		session.status = sessionWatched
