@@ -90,9 +90,10 @@ func (c *PlexClient) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c.proxy.ServeHTTP(w, r)
 
 	if w.(middleware.WrapResponseWriter).Status() == http.StatusOK {
+		query := r.URL.Query()
 		switch path {
 		case "/:/scrobble", "/:/unscrobble":
-			go clearCachedMetadata(r.Header.Get(headerToken))
+			go clearCachedMetadata(query.Get("ratingKey"), r.Header.Get(headerToken))
 		case "/:/timeline":
 			go c.syncTimelineWithPlaxt(r)
 		}
@@ -247,32 +248,34 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request) {
 	case "playing":
 		if session.status == sessionPlaying {
 			if progress >= 100 {
-				event = "media.scrobble"
+				event = webhookEventScrobble
 			} else {
-				event = "media.resume"
+				event = webhookEventResume
 			}
 		} else {
-			event = "media.play"
+			event = webhookEventPlay
 		}
 	case "paused":
 		if progress >= watchedThreshold && session.status == sessionPlaying {
-			event = "media.scrobble"
+			event = webhookEventScrobble
 		} else {
-			event = "media.pause"
+			event = webhookEventPause
 		}
 	case "stopped":
 		if progress >= watchedThreshold && session.status == sessionPlaying {
-			event = "media.scrobble"
+			event = webhookEventScrobble
 		} else {
-			event = "media.stop"
+			event = webhookEventStop
 		}
 	}
 	if event == "" || session.status == sessionWatched {
 		return
-	} else if event == "media.scrobble" {
+	} else if event == webhookEventScrobble {
 		session.status = sessionWatched
 		sessionChanged = true
-		go clearCachedMetadata(r.Header.Get(headerToken))
+		go clearCachedMetadata(ratingKey, r.Header.Get(headerToken))
+	} else if event == webhookEventStop {
+		go clearCachedMetadata(ratingKey, r.Header.Get(headerToken))
 	} else if session.status == sessionUnplayed {
 		session.status = sessionPlaying
 		sessionChanged = true
