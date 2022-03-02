@@ -1,8 +1,6 @@
 package handler
 
 import (
-	"context"
-	"fmt"
 	"os"
 	"sync"
 	"time"
@@ -70,14 +68,7 @@ func wsOnActivity(n plex.NotificationContainer) {
 			isMetadataChanged = true
 		}
 	}
-	if isMetadataChanged && redisClient != nil {
-		mu.Lock()
-		defer mu.Unlock()
-
-		ctx := context.Background()
-		keys := redisClient.Keys(ctx, fmt.Sprintf("%s:*", cachePrefixMetadata)).Val()
-		if len(keys) > 0 {
-			redisClient.Del(ctx, keys...).Val()
-		}
+	if isMetadataChanged {
+		clearCachedMetadata("")
 	}
 }

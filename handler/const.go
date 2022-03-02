@@ -12,6 +12,7 @@ const (
 	headerPageSize       = "X-Plex-Container-Size"
 	headerPageStart      = "X-Plex-Container-Start"
 	headerToken          = "X-Plex-Token"
+	headerUserId         = "X-Plex-User-Id"
 	headerAccept         = "Accept"
 	headerAcceptLanguage = "Accept-Language"
 	headerCacheControl   = "Cache-Control"
@@ -32,4 +33,12 @@ const (
 
 	contentTypeAny = "*/*"
 	contentTypeXml = "xml"
+
+	watchedThreshold = 90
+)
+
+const (
+	sessionUnplayed sessionStatus = iota
+	sessionPlaying
+	sessionWatched
 )

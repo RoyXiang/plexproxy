@@ -1,8 +1,8 @@
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
-github.com/RoyXiang/go-plex-client v0.0.0-20220221154622-936c609dd907 h1:R1HVInXY+cYDfNx27G3/olkiDfYzsm+N573tUKspBIY=
-github.com/RoyXiang/go-plex-client v0.0.0-20220221154622-936c609dd907/go.mod h1:NICqgLUxSYsDHh3n+m6xomGmRbqLxBcN4D7Jb9Z6LJ0=
+github.com/RoyXiang/go-plex-client v0.0.0-20220223140842-7433de7e9b77 h1:GVtLzX8S4rd6u9OflS/huI2ilbXVsxSpjipLtx/Jm2c=
+github.com/RoyXiang/go-plex-client v0.0.0-20220223140842-7433de7e9b77/go.mod h1:NICqgLUxSYsDHh3n+m6xomGmRbqLxBcN4D7Jb9Z6LJ0=
 github.com/armon/consul-api v0.0.0-20180202201655-eb2c6b5be1b6/go.mod h1:grANhF5doyWs3UAsr3K4I6qtAmlQcZDesFNEHPZAzj8=
 github.com/cespare/xxhash v1.1.0 h1:a6HrQnmkObjyL+Gs60czilIUGqrzKutQD6XZog3p+ko=
 github.com/cespare/xxhash v1.1.0/go.mod h1:XrSqR1VqqWfGrhpAt58auRo0WTKS1nRRg3ghfAqPWnc=
@@ -101,6 +101,8 @@ github.com/stretchr/testify v1.4.0/go.mod h1:j7eGeouHqKxXV5pUuKE4zz7dFj8WfuZ+81P
 github.com/stretchr/testify v1.5.1/go.mod h1:5W2xD1RspED5o8YsWQXVCued0rvSQ+mT+I5cxcmMvtA=
 github.com/ugorji/go/codec v0.0.0-20181204163529-d75b2dcb6bc8/go.mod h1:VFNgLljTbGfSG7qAOspJ7OScBnGdDN/yBr0sguwnwf0=
 github.com/urfave/cli v1.20.0/go.mod h1:70zkFmudgCuE/ngEzBv17Jvp/497gISqfk5gWijbERA=
+github.com/xanderstrike/plexhooks v0.0.0-20200926011736-c63bcd35fe3e h1:IeBBs3KadFYmbWcRw/qBuM3bscr2iKC1hYBr8GS5Gps=
+github.com/xanderstrike/plexhooks v0.0.0-20200926011736-c63bcd35fe3e/go.mod h1:IXlzovfjAZX8O7nzPwCiYe2T0i/0enZzzqkvVq8N02M=
 github.com/xordataexchange/crypt v0.0.3-0.20170626215501-b2862e3d0a77/go.mod h1:aYKd//L2LvnjZzWKhF00oedf4jCCReLcmhLdhm1A27Q=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=

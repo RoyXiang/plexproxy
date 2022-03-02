@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/go-chi/chi/v5/middleware"
 )
 
 var (
@@ -146,13 +148,13 @@ func cacheMiddleware(next http.Handler) http.Handler {
 				resp, _ = http.ReadResponse(reader, r)
 			}
 			if resp == nil {
-				nw := httptest.NewRecorder()
+				nw := middleware.NewWrapResponseWriter(httptest.NewRecorder(), r.ProtoMajor)
 				next.ServeHTTP(nw, r)
-				resp = nw.Result()
+				resp = nw.Unwrap().(*httptest.ResponseRecorder).Result()
 				defer func() {
 					w.Header().Set(headerCacheStatus, "MISS")
 					w.WriteHeader(resp.StatusCode)
-					_, _ = w.Write(nw.Body.Bytes())
+					_, _ = w.Write(nw.Unwrap().(*httptest.ResponseRecorder).Body.Bytes())
 					if resp.StatusCode == http.StatusOK {
 						writeToCache(cacheKey, resp, info.Ttl)
 					}
@@ -185,7 +187,7 @@ func cacheMiddleware(next http.Handler) http.Handler {
 			}
 			userId := plexClient.GetUserId(token)
 			if userId > 0 {
-				params.Set("X-Plex-User-Id", strconv.Itoa(userId))
+				params.Set(headerUserId, strconv.Itoa(userId))
 				params.Set(headerAccept, getAcceptContentType(r))
 			} else {
 				params.Set(headerToken, token)

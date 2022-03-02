@@ -16,15 +16,17 @@ var (
 	plexClient  *PlexClient
 	redisClient *redis.Client
 
+	emptyStruct = struct{}{}
+
 	mu sync.RWMutex
 	ml common.MultipleLock
 )
 
 func init() {
 	plexClient = NewPlexClient(PlexConfig{
-		BaseUrl:      os.Getenv("PLEX_BASEURL"),
-		Token:        os.Getenv("PLEX_TOKEN"),
-		PlaxtBaseUrl: os.Getenv("PLAXT_BASEURL"),
+		BaseUrl:  os.Getenv("PLEX_BASEURL"),
+		Token:    os.Getenv("PLEX_TOKEN"),
+		PlaxtUrl: os.Getenv("PLAXT_URL"),
 	})
 	if plexClient == nil {
 		log.Fatalln("Please configure PLEX_BASEURL as a valid URL at first")
@@ -49,9 +51,8 @@ func NewRouter() http.Handler {
 	r.Use(trafficMiddleware)
 
 	if redisClient != nil {
-		r.Path("/:/eventsource/notifications").Handler(plexClient)
-		r.Path("/:/timeline").Handler(plexClient)
-		r.Path("/:/websockets/notifications").Handler(plexClient)
+		// bypass cache
+		r.PathPrefix("/:/").Handler(plexClient)
 		r.PathPrefix("/library/parts/").Handler(plexClient)
 
 		staticRouter := r.Methods(http.MethodGet).Subrouter()
