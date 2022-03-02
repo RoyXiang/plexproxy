@@ -181,7 +181,7 @@ func (c *PlexClient) GetAccountInfo(token string) (user plex.UserPlexTV) {
 }
 
 func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request) {
-	if c.plaxtUrl == "" {
+	if c.plaxtUrl == "" || c.client.Token == "" {
 		return
 	}
 

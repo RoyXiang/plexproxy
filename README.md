@@ -9,6 +9,7 @@ the performance of a low-end server.
 2. Cross-device response caching by client type
 3. Disable transcoding by forcing direct play/stream
 4. Redirect web app to [official one](https://app.plex.tv/desktop)
+5. [Plaxt](https://github.com/XanderStrike/goplaxt) integration
 
 ## Prerequisites
 
@@ -31,12 +32,9 @@ env CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" github.com/RoyXiang/plex
      * If you need a cache layer, set a value for it
    - `PLEX_TOKEN` (Optional, if you need it, see [here](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/))
      * It is used to receive notifications from Plex Media Server
-     * Currently, notifications are used to flush the cache of metadata
+     * Notifications are used to flush the cache of metadata
    - `PLAXT_URL` (Optional, e.g. `https://plaxt.astandke.com/api?id=generate-your-own-silly`)
-     * Set it if you run an instance of [plaxt](https://github.com/XanderStrike/goplaxt)
+     * `PLEX_TOKEN` is required
+     * Set it if you run an instance of [Plaxt](https://github.com/XanderStrike/goplaxt)
      * Or, you can set it to [the official one](https://plaxt.astandke.com/)
 2. Run the program
-
-## TODO
-
-- [ ] Native [Trakt](https://trakt.tv/) integration
