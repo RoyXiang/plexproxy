@@ -93,7 +93,7 @@ func (c *PlexClient) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query()
 		switch path {
 		case "/:/scrobble", "/:/unscrobble":
-			go clearCachedMetadata(query.Get("ratingKey"), r.Header.Get(headerToken))
+			go clearCachedMetadata(query.Get("key"), r.Header.Get(headerToken))
 		case "/:/timeline":
 			go c.syncTimelineWithPlaxt(r)
 		}
