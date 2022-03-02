@@ -221,6 +221,9 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request) {
 	sectionId := session.metadata.LibrarySectionID.String()
 	if c.getLibrarySection(sectionId) {
 		section = c.sections[sectionId]
+		if section.Type != "show" && section.Type != "movie" {
+			return
+		}
 	} else {
 		return
 	}
