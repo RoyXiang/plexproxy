@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/jrudio/go-plex-client"
@@ -23,4 +24,10 @@ type sessionData struct {
 	guids     []plexhooks.ExternalGuid
 	lastEvent string
 	status    sessionStatus
+}
+
+type plexUser struct {
+	Id       json.Number
+	Username string
+	Token    string
 }

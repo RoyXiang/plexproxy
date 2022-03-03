@@ -39,6 +39,7 @@ type PlexClient struct {
 	serverIdentifier *string
 	sections         map[string]plex.Directory
 	sessions         map[string]sessionData
+	friends          map[string]plexUser
 
 	mu sync.RWMutex
 }
@@ -126,17 +127,29 @@ func (c *PlexClient) GetUserId(token string) (id int) {
 	var err error
 	ctx := context.Background()
 	cacheKey := fmt.Sprintf("%s:token:%s", cachePrefixPlex, token)
-	id, err = redisClient.Get(ctx, cacheKey).Int()
-	if err == nil {
-		return id
+
+	isCacheEnabled := redisClient != nil
+	if isCacheEnabled {
+		id, err = redisClient.Get(ctx, cacheKey).Int()
+		if err == nil {
+			return id
+		}
 	}
 
-	response := c.GetSharedServers()
-	for _, friend := range response.Friends {
-		key := fmt.Sprintf("%s:token:%s", cachePrefixPlex, friend.AccessToken)
-		redisClient.Set(ctx, key, friend.UserId, 0)
-		if friend.AccessToken == token {
-			id = friend.UserId
+	// refresh the list of friends
+	c.findFriend("")
+	for _, friend := range c.friends {
+		if friend.Token == token {
+			if id64, err := friend.Id.Int64(); err == nil {
+				id = int(id64)
+				if !isCacheEnabled {
+					break
+				}
+			}
+		}
+		if isCacheEnabled {
+			key := fmt.Sprintf("%s:token:%s", cachePrefixPlex, friend.Token)
+			redisClient.Set(ctx, key, friend.Id, 0)
 		}
 	}
 	if id > 0 {
@@ -145,21 +158,11 @@ func (c *PlexClient) GetUserId(token string) (id int) {
 
 	user := c.GetAccountInfo(token)
 	if user.ID > 0 {
-		redisClient.Set(ctx, cacheKey, user.ID, 0)
 		id = user.ID
+		if isCacheEnabled {
+			redisClient.Set(ctx, cacheKey, user.ID, 0)
+		}
 	}
-	return
-}
-
-func (c *PlexClient) GetSharedServers() (response plex.SharedServersResponse) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	identifier := c.getServerIdentifier()
-	if identifier == "" {
-		return
-	}
-	response, _ = c.client.GetSharedServers(identifier)
 	return
 }
 
@@ -178,6 +181,43 @@ func (c *PlexClient) GetAccountInfo(token string) (user plex.UserPlexTV) {
 
 	c.client.Token = token
 	user, _ = c.client.MyAccount()
+	return
+}
+
+func (c *PlexClient) findFriend(id string) (isFound bool) {
+	if id != "" {
+		for _, friend := range c.friends {
+			if friend.Id.String() == id {
+				isFound = true
+				return
+			}
+		}
+	}
+
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	identifier := c.getServerIdentifier()
+	if identifier == "" {
+		return
+	}
+	response, err := c.client.GetSharedServers(identifier)
+	if err != nil {
+		return
+	}
+
+	c.friends = make(map[string]plexUser, len(response.Friends))
+	for _, friend := range response.Friends {
+		userId := strconv.Itoa(friend.UserId)
+		c.friends[userId] = plexUser{
+			Id:       json.Number(userId),
+			Username: friend.Username,
+			Token:    friend.AccessToken,
+		}
+		if userId == id {
+			isFound = true
+		}
+	}
 	return
 }
 
@@ -290,12 +330,18 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request) {
 		return
 	}
 
+	userId := session.metadata.User.ID
+	username := session.metadata.User.Title
+	if c.findFriend(userId) {
+		username = c.friends[userId].Username
+	}
+
 	webhook := plexhooks.PlexResponse{
 		Event: event,
 		Owner: true,
 		User:  false,
 		Account: plexhooks.Account{
-			Title: session.metadata.User.Title,
+			Title: username,
 		},
 		Server: plexhooks.Server{
 			Uuid: serverIdentifier,
