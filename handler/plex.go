@@ -151,18 +151,10 @@ func (c *PlexClient) GetUser(token string) (user *plexUser) {
 		}
 	}
 
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	identifier := c.getServerIdentifier()
-	if identifier == "" {
+	response := c.GetSharedServers()
+	if response == nil {
 		return
 	}
-	response, err := c.client.GetSharedServers(identifier)
-	if err != nil {
-		return
-	}
-
 	for _, friend := range response.Friends {
 		realUser := plexUser{
 			Id:       friend.UserId,
@@ -192,18 +184,28 @@ func (c *PlexClient) GetUser(token string) (user *plexUser) {
 	return
 }
 
-func (c *PlexClient) GetAccountInfo(token string) (user plex.UserPlexTV) {
-	if c.client.Token != token {
-		c.mu.Lock()
-		originalToken := token
-		defer func() {
-			c.client.Token = originalToken
-			c.mu.Unlock()
-		}()
-	} else {
-		c.mu.RLock()
-		defer c.mu.RUnlock()
+func (c *PlexClient) GetSharedServers() *plex.SharedServersResponse {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	identifier := c.getServerIdentifier()
+	if identifier == "" {
+		return nil
 	}
+	response, err := c.client.GetSharedServers(identifier)
+	if err != nil {
+		return nil
+	}
+	return &response
+}
+
+func (c *PlexClient) GetAccountInfo(token string) (user plex.UserPlexTV) {
+	c.mu.Lock()
+	originalToken := token
+	defer func() {
+		c.client.Token = originalToken
+		c.mu.Unlock()
+	}()
 
 	var err error
 	c.client.Token = token

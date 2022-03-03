@@ -36,13 +36,6 @@ func modifyResponse(resp *http.Response) error {
 }
 
 func proxyErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
-	logEntry := middleware.GetLogEntry(r)
-	if logEntry != nil {
-		logEntry.Panic(err, debug.Stack())
-	} else {
-		middleware.PrintPrettyStack(err)
-	}
-
 	ctxErr := r.Context().Err()
 	switch ctxErr {
 	case context.Canceled:
@@ -50,6 +43,12 @@ func proxyErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
 	case context.DeadlineExceeded:
 		w.WriteHeader(http.StatusGatewayTimeout)
 	default:
+		logEntry := middleware.GetLogEntry(r)
+		if logEntry != nil {
+			logEntry.Panic(err, debug.Stack())
+		} else {
+			middleware.PrintPrettyStack(err)
+		}
 		w.WriteHeader(http.StatusInternalServerError)
 	}
 }
