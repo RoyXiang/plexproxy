@@ -26,7 +26,6 @@ type sessionData struct {
 }
 
 type plexUser struct {
-	Id       int
-	Username string
-	Token    string
+	Id       int    `json:"id"`
+	Username string `json:"username"`
 }

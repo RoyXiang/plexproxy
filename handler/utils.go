@@ -131,9 +131,9 @@ func clearCachedMetadata(ratingKey, token string) {
 		pattern += fmt.Sprintf("/library/metadata/%s", ratingKey)
 	}
 	if token != "" {
-		userId := plexClient.GetUserId(token)
-		if userId > 0 {
-			pattern += fmt.Sprintf("*%s=%d", headerUserId, userId)
+		user := plexClient.GetUser(token)
+		if user != nil {
+			pattern += fmt.Sprintf("*%s=%d", headerUserId, user.Id)
 		}
 	}
 	pattern += "*"
