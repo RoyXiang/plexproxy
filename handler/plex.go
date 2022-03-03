@@ -273,6 +273,8 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request) {
 		metadata := c.getMetadata(ratingKey)
 		if metadata == nil {
 			return
+		} else if metadata.MediaContainer.Metadata[0].OriginalTitle != "" {
+			session.metadata.Title = metadata.MediaContainer.Metadata[0].OriginalTitle
 		}
 		for _, guid := range metadata.MediaContainer.Metadata[0].AltGUIDs {
 			externalGuids = append(externalGuids, plexhooks.ExternalGuid{
