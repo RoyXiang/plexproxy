@@ -222,7 +222,7 @@ func (c *PlexClient) findFriend(id string) (isFound bool) {
 }
 
 func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request) {
-	if c.plaxtUrl == "" || c.client.Token == "" {
+	if c.plaxtUrl == "" || !c.IsTokenSet() {
 		return
 	}
 
