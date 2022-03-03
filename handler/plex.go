@@ -73,6 +73,7 @@ func NewPlexClient(config PlexConfig) *PlexClient {
 		plaxtUrl: plaxtUrl,
 		sections: make(map[string]plex.Directory, 0),
 		sessions: make(map[string]sessionData),
+		friends:  make(map[string]plexUser),
 	}
 }
 
@@ -137,14 +138,12 @@ func (c *PlexClient) GetUserId(token string) (id int) {
 	}
 
 	// refresh the list of friends
-	c.findFriend("")
+	c.findFriend(0)
 	for _, friend := range c.friends {
 		if friend.Token == token {
-			if id64, err := friend.Id.Int64(); err == nil {
-				id = int(id64)
-				if !isCacheEnabled {
-					break
-				}
+			id = friend.Id
+			if !isCacheEnabled {
+				break
 			}
 		}
 		if isCacheEnabled {
@@ -179,15 +178,23 @@ func (c *PlexClient) GetAccountInfo(token string) (user plex.UserPlexTV) {
 		defer c.mu.RUnlock()
 	}
 
+	var err error
 	c.client.Token = token
-	user, _ = c.client.MyAccount()
+	user, err = c.client.MyAccount()
+	if err == nil {
+		c.friends[strconv.Itoa(user.ID)] = plexUser{
+			Id:       user.ID,
+			Username: user.Username,
+			Token:    token,
+		}
+	}
 	return
 }
 
-func (c *PlexClient) findFriend(id string) (isFound bool) {
-	if id != "" {
+func (c *PlexClient) findFriend(id int) (isFound bool) {
+	if id > 0 {
 		for _, friend := range c.friends {
-			if friend.Id.String() == id {
+			if friend.Id == id {
 				isFound = true
 				return
 			}
@@ -206,15 +213,16 @@ func (c *PlexClient) findFriend(id string) (isFound bool) {
 		return
 	}
 
-	c.friends = make(map[string]plexUser, len(response.Friends))
 	for _, friend := range response.Friends {
 		userId := strconv.Itoa(friend.UserId)
-		c.friends[userId] = plexUser{
-			Id:       json.Number(userId),
-			Username: friend.Username,
-			Token:    friend.AccessToken,
+		if _, ok := c.friends[userId]; !ok {
+			c.friends[userId] = plexUser{
+				Id:       friend.UserId,
+				Username: friend.Username,
+				Token:    friend.AccessToken,
+			}
 		}
-		if userId == id {
+		if friend.UserId == id {
 			isFound = true
 		}
 	}
@@ -226,11 +234,12 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request) {
 		return
 	}
 
+	token := r.Header.Get(headerToken)
 	clientUuid := r.Header.Get(headerClientIdentity)
 	ratingKey := r.URL.Query().Get("ratingKey")
 	playbackTime := r.URL.Query().Get("time")
 	state := r.URL.Query().Get("state")
-	if clientUuid == "" || ratingKey == "" || playbackTime == "" || state == "" {
+	if token == "" || clientUuid == "" || ratingKey == "" || playbackTime == "" || state == "" {
 		return
 	}
 
@@ -332,10 +341,17 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request) {
 		return
 	}
 
-	userId := session.metadata.User.ID
+	userId := c.GetUserId(token)
+	userIdStr := strconv.Itoa(userId)
 	username := session.metadata.User.Title
 	if c.findFriend(userId) {
-		username = c.friends[userId].Username
+		username = c.friends[userIdStr].Username
+	} else {
+		// if not a friend and not in cache
+		user := c.GetAccountInfo(token)
+		if user.ID == userId {
+			username = user.Username
+		}
 	}
 
 	webhook := plexhooks.PlexResponse{
@@ -343,7 +359,9 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request) {
 		Owner: true,
 		User:  false,
 		Account: plexhooks.Account{
+			Id:    userId,
 			Title: username,
+			Thumb: session.metadata.User.Thumb,
 		},
 		Server: plexhooks.Server{
 			Uuid: serverIdentifier,
