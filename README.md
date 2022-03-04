@@ -38,4 +38,6 @@ env CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" github.com/RoyXiang/plex
      * `PLEX_TOKEN` is required
      * Set it if you run an instance of [Plaxt](https://github.com/XanderStrike/goplaxt)
      * Or, you can set it to [the official one](https://plaxt.astandke.com/)
+   - `REDIRECT_WEB_APP` (Optional, default: `true`)
+   - `DISABLE_TRANSCODE` (Optional, default: `true`)
 2. Run the program

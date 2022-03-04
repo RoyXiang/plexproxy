@@ -24,17 +24,20 @@ import (
 )
 
 type PlexConfig struct {
-	BaseUrl  string
-	Token    string
-	PlaxtUrl string
+	BaseUrl          string
+	Token            string
+	PlaxtUrl         string
+	RedirectWebApp   string
+	DisableTranscode string
 }
 
 type PlexClient struct {
 	proxy  *httputil.ReverseProxy
 	client *plex.Plex
 
-	plaxtBaseUrl string
-	plaxtUrl     string
+	plaxtUrl         string
+	redirectWebApp   bool
+	disableTranscode bool
 
 	serverIdentifier *string
 	sections         map[string]plex.Directory
@@ -67,13 +70,27 @@ func NewPlexClient(config PlexConfig) *PlexClient {
 		plaxtUrl = u.String()
 	}
 
+	var redirectWebApp, disableTranscode bool
+	if b, err := strconv.ParseBool(config.RedirectWebApp); err == nil {
+		redirectWebApp = b
+	} else {
+		redirectWebApp = true
+	}
+	if b, err := strconv.ParseBool(config.DisableTranscode); err == nil {
+		disableTranscode = b
+	} else {
+		disableTranscode = true
+	}
+
 	return &PlexClient{
-		proxy:    proxy,
-		client:   client,
-		plaxtUrl: plaxtUrl,
-		sections: make(map[string]plex.Directory, 0),
-		sessions: make(map[string]sessionData),
-		friends:  make(map[string]plexUser),
+		proxy:            proxy,
+		client:           client,
+		plaxtUrl:         plaxtUrl,
+		redirectWebApp:   redirectWebApp,
+		disableTranscode: disableTranscode,
+		sections:         make(map[string]plex.Directory, 0),
+		sessions:         make(map[string]sessionData),
+		friends:          make(map[string]plexUser),
 	}
 }
 
@@ -89,10 +106,12 @@ func (c *PlexClient) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.EscapedPath()
 	switch {
 	case path == "/video/:/transcode/universal/decision":
-		r = c.disableTranscoding(r)
+		if c.disableTranscode {
+			r = c.disableTranscoding(r)
+		}
 	case strings.HasPrefix(path, "/web/"):
-		if r.Method == http.MethodGet {
-			http.Redirect(w, r, "https://app.plex.tv/desktop", http.StatusMovedPermanently)
+		if c.redirectWebApp && r.Method == http.MethodGet {
+			http.Redirect(w, r, "https://app.plex.tv/desktop", http.StatusFound)
 			return
 		}
 	}
