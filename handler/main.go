@@ -33,7 +33,7 @@ func init() {
 	}
 
 	redisUrl := os.Getenv("REDIS_URL")
-	if redisUrl != "" {
+	if redisUrl != "" && plexClient.IsTokenSet() {
 		options, err := redis.ParseURL(redisUrl)
 		if err == nil {
 			redisClient = redis.NewClient(options)

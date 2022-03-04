@@ -28,11 +28,12 @@ env CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" github.com/RoyXiang/plex
 
 1. Configure environment variables in your preferred way
    - `PLEX_BASEURL` (Required, e.g. `http://127.0.0.1:32400`)
-   - `REDIS_URL` (Optional, e.g. `redis://127.0.0.1:6379`)
-     * If you need a cache layer, set a value for it
    - `PLEX_TOKEN` (Optional, if you need it, see [here](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/))
      * It is used to receive notifications from Plex Media Server
      * Notifications are used to flush the cache of metadata
+   - `REDIS_URL` (Optional, e.g. `redis://127.0.0.1:6379`)
+       * If you need a cache layer, set a value for it
+       * `PLEX_TOKEN` is required
    - `PLAXT_URL` (Optional, e.g. `https://plaxt.astandke.com/api?id=generate-your-own-silly`)
      * `PLEX_TOKEN` is required
      * Set it if you run an instance of [Plaxt](https://github.com/XanderStrike/goplaxt)
