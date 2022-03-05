@@ -35,6 +35,12 @@ const (
 	contentTypeXml = "xml"
 
 	watchedThreshold = 90
+
+	webhookEventPlay     = "media.play"
+	webhookEventResume   = "media.resume"
+	webhookEventPause    = "media.pause"
+	webhookEventStop     = "media.stop"
+	webhookEventScrobble = "media.scrobble"
 )
 
 const (

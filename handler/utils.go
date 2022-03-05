@@ -118,7 +118,7 @@ func writeToCache(key string, resp *http.Response, ttl time.Duration) {
 	redisClient.Set(context.Background(), key, b, ttl)
 }
 
-func clearCachedMetadata(token string) {
+func clearCachedMetadata(ratingKey, token string) {
 	if redisClient == nil {
 		return
 	}
@@ -126,16 +126,20 @@ func clearCachedMetadata(token string) {
 	mu.Lock()
 	defer mu.Unlock()
 
-	pattern := fmt.Sprintf("%s:*", cachePrefixMetadata)
+	pattern := cachePrefixMetadata + ":"
+	if ratingKey != "" {
+		pattern += fmt.Sprintf("/library/metadata/%s", ratingKey)
+	}
 	if token != "" {
-		userId := plexClient.GetUserId(token)
-		if userId > 0 {
-			pattern = fmt.Sprintf("%s%s=%d*", pattern, headerUserId, userId)
+		user := plexClient.GetUser(token)
+		if user != nil {
+			pattern += fmt.Sprintf("*%s=%d", headerUserId, user.Id)
 		}
 	}
+	pattern += "*"
 
 	ctx := context.Background()
-	keys := redisClient.Keys(ctx, fmt.Sprintf("%s:*", cachePrefixMetadata)).Val()
+	keys := redisClient.Keys(ctx, pattern).Val()
 	if len(keys) > 0 {
 		redisClient.Del(ctx, keys...).Val()
 	}

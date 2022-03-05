@@ -24,21 +24,25 @@ import (
 )
 
 type PlexConfig struct {
-	BaseUrl  string
-	Token    string
-	PlaxtUrl string
+	BaseUrl          string
+	Token            string
+	PlaxtUrl         string
+	RedirectWebApp   string
+	DisableTranscode string
 }
 
 type PlexClient struct {
 	proxy  *httputil.ReverseProxy
 	client *plex.Plex
 
-	plaxtBaseUrl string
-	plaxtUrl     string
+	plaxtUrl         string
+	redirectWebApp   bool
+	disableTranscode bool
 
 	serverIdentifier *string
 	sections         map[string]plex.Directory
 	sessions         map[string]sessionData
+	friends          map[string]plexUser
 
 	mu sync.RWMutex
 }
@@ -66,23 +70,48 @@ func NewPlexClient(config PlexConfig) *PlexClient {
 		plaxtUrl = u.String()
 	}
 
-	return &PlexClient{
-		proxy:    proxy,
-		client:   client,
-		plaxtUrl: plaxtUrl,
-		sections: make(map[string]plex.Directory, 0),
-		sessions: make(map[string]sessionData),
+	var redirectWebApp, disableTranscode bool
+	if b, err := strconv.ParseBool(config.RedirectWebApp); err == nil {
+		redirectWebApp = b
+	} else {
+		redirectWebApp = true
 	}
+	if b, err := strconv.ParseBool(config.DisableTranscode); err == nil {
+		disableTranscode = b
+	} else {
+		disableTranscode = true
+	}
+
+	return &PlexClient{
+		proxy:            proxy,
+		client:           client,
+		plaxtUrl:         plaxtUrl,
+		redirectWebApp:   redirectWebApp,
+		disableTranscode: disableTranscode,
+		sections:         make(map[string]plex.Directory, 0),
+		sessions:         make(map[string]sessionData),
+		friends:          make(map[string]plexUser),
+	}
+}
+
+func (u *plexUser) MarshalBinary() ([]byte, error) {
+	return json.Marshal(u)
+}
+
+func (u *plexUser) UnmarshalBinary(data []byte) error {
+	return json.Unmarshal(data, u)
 }
 
 func (c *PlexClient) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.EscapedPath()
 	switch {
 	case path == "/video/:/transcode/universal/decision":
-		r = c.disableTranscoding(r)
+		if c.disableTranscode {
+			r = c.disableTranscoding(r)
+		}
 	case strings.HasPrefix(path, "/web/"):
-		if r.Method == http.MethodGet {
-			http.Redirect(w, r, "https://app.plex.tv/desktop", http.StatusMovedPermanently)
+		if c.redirectWebApp && r.Method == http.MethodGet {
+			http.Redirect(w, r, "https://app.plex.tv/desktop", http.StatusFound)
 			return
 		}
 	}
@@ -90,9 +119,10 @@ func (c *PlexClient) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c.proxy.ServeHTTP(w, r)
 
 	if w.(middleware.WrapResponseWriter).Status() == http.StatusOK {
+		query := r.URL.Query()
 		switch path {
 		case "/:/scrobble", "/:/unscrobble":
-			go clearCachedMetadata(r.Header.Get(headerToken))
+			go clearCachedMetadata(query.Get("key"), r.Header.Get(headerToken))
 		case "/:/timeline":
 			go c.syncTimelineWithPlaxt(r)
 		}
@@ -121,75 +151,109 @@ func (c *PlexClient) SubscribeToNotifications(events *plex.NotificationEvents, i
 	c.client.SubscribeToNotifications(events, interrupt, fn)
 }
 
-func (c *PlexClient) GetUserId(token string) (id int) {
-	var err error
-	ctx := context.Background()
-	cacheKey := fmt.Sprintf("%s:token:%s", cachePrefixPlex, token)
-	id, err = redisClient.Get(ctx, cacheKey).Int()
-	if err == nil {
-		return id
-	}
-
-	response := c.GetSharedServers()
-	for _, friend := range response.Friends {
-		key := fmt.Sprintf("%s:token:%s", cachePrefixPlex, friend.AccessToken)
-		redisClient.Set(ctx, key, friend.UserId, 0)
-		if friend.AccessToken == token {
-			id = friend.UserId
-		}
-	}
-	if id > 0 {
+func (c *PlexClient) GetUser(token string) (user *plexUser) {
+	if realUser, ok := c.friends[token]; ok {
+		user = &realUser
 		return
 	}
 
-	user := c.GetAccountInfo(token)
-	if user.ID > 0 {
-		redisClient.Set(ctx, cacheKey, user.ID, 0)
-		id = user.ID
+	var err error
+	ctx := context.Background()
+	cacheKey := fmt.Sprintf("%s:token:%s", cachePrefixPlex, token)
+
+	isCacheEnabled := redisClient != nil
+	if isCacheEnabled {
+		err = redisClient.Get(ctx, cacheKey).Scan(user)
+		if err == nil {
+			c.friends[token] = *user
+			return
+		}
+	}
+
+	response := c.GetSharedServers()
+	if response == nil {
+		return
+	}
+	for _, friend := range response.Friends {
+		realUser := plexUser{
+			Id:       friend.UserId,
+			Username: friend.Username,
+		}
+		if friend.AccessToken == token {
+			user = &realUser
+		}
+		c.friends[friend.AccessToken] = realUser
+		if isCacheEnabled {
+			key := fmt.Sprintf("%s:token:%s", cachePrefixPlex, friend.AccessToken)
+			redisClient.Set(ctx, key, &realUser, 0)
+		}
+	}
+	if user != nil {
+		return
+	}
+
+	info := c.GetAccountInfo(token)
+	if info.ID > 0 {
+		realUser := c.friends[token]
+		user = &realUser
+		if isCacheEnabled {
+			redisClient.Set(ctx, cacheKey, user, 0)
+		}
 	}
 	return
 }
 
-func (c *PlexClient) GetSharedServers() (response plex.SharedServersResponse) {
+func (c *PlexClient) GetSharedServers() *plex.SharedServersResponse {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	identifier := c.getServerIdentifier()
 	if identifier == "" {
-		return
+		return nil
 	}
-	response, _ = c.client.GetSharedServers(identifier)
-	return
+	response, err := c.client.GetSharedServers(identifier)
+	if err != nil {
+		return nil
+	}
+	return &response
 }
 
 func (c *PlexClient) GetAccountInfo(token string) (user plex.UserPlexTV) {
-	if c.client.Token != token {
-		c.mu.Lock()
-		originalToken := token
-		defer func() {
-			c.client.Token = originalToken
-			c.mu.Unlock()
-		}()
-	} else {
-		c.mu.RLock()
-		defer c.mu.RUnlock()
-	}
+	c.mu.Lock()
+	originalToken := token
+	defer func() {
+		c.client.Token = originalToken
+		c.mu.Unlock()
+	}()
 
+	var err error
 	c.client.Token = token
-	user, _ = c.client.MyAccount()
+	user, err = c.client.MyAccount()
+	if err == nil {
+		c.friends[token] = plexUser{
+			Id:       user.ID,
+			Username: user.Username,
+		}
+	}
 	return
 }
 
 func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request) {
-	if c.plaxtUrl == "" || c.client.Token == "" {
+	if c.plaxtUrl == "" || !c.IsTokenSet() {
 		return
 	}
 
+	token := r.Header.Get(headerToken)
 	clientUuid := r.Header.Get(headerClientIdentity)
 	ratingKey := r.URL.Query().Get("ratingKey")
 	playbackTime := r.URL.Query().Get("time")
 	state := r.URL.Query().Get("state")
-	if clientUuid == "" || ratingKey == "" || playbackTime == "" || state == "" {
+	if token == "" || clientUuid == "" || ratingKey == "" || playbackTime == "" || state == "" {
+		return
+	}
+
+	user := c.GetUser(token)
+	if user == nil {
 		return
 	}
 
@@ -220,6 +284,9 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request) {
 	sectionId := session.metadata.LibrarySectionID.String()
 	if c.getLibrarySection(sectionId) {
 		section = c.sections[sectionId]
+		if section.Type != "show" && section.Type != "movie" {
+			return
+		}
 	} else {
 		return
 	}
@@ -229,6 +296,8 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request) {
 		metadata := c.getMetadata(ratingKey)
 		if metadata == nil {
 			return
+		} else if metadata.MediaContainer.Metadata[0].OriginalTitle != "" {
+			session.metadata.Title = metadata.MediaContainer.Metadata[0].OriginalTitle
 		}
 		for _, guid := range metadata.MediaContainer.Metadata[0].AltGUIDs {
 			externalGuids = append(externalGuids, plexhooks.ExternalGuid{
@@ -247,32 +316,34 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request) {
 	case "playing":
 		if session.status == sessionPlaying {
 			if progress >= 100 {
-				event = "media.scrobble"
+				event = webhookEventScrobble
 			} else {
-				event = "media.resume"
+				event = webhookEventResume
 			}
 		} else {
-			event = "media.play"
+			event = webhookEventPlay
 		}
 	case "paused":
 		if progress >= watchedThreshold && session.status == sessionPlaying {
-			event = "media.scrobble"
+			event = webhookEventScrobble
 		} else {
-			event = "media.pause"
+			event = webhookEventPause
 		}
 	case "stopped":
 		if progress >= watchedThreshold && session.status == sessionPlaying {
-			event = "media.scrobble"
+			event = webhookEventScrobble
 		} else {
-			event = "media.stop"
+			event = webhookEventStop
 		}
 	}
 	if event == "" || session.status == sessionWatched {
 		return
-	} else if event == "media.scrobble" {
+	} else if event == webhookEventScrobble {
 		session.status = sessionWatched
 		sessionChanged = true
-		go clearCachedMetadata(r.Header.Get(headerToken))
+		go clearCachedMetadata(ratingKey, r.Header.Get(headerToken))
+	} else if event == webhookEventStop {
+		go clearCachedMetadata(ratingKey, r.Header.Get(headerToken))
 	} else if session.status == sessionUnplayed {
 		session.status = sessionPlaying
 		sessionChanged = true
@@ -289,7 +360,9 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request) {
 		Owner: true,
 		User:  false,
 		Account: plexhooks.Account{
-			Title: session.metadata.User.Title,
+			Id:    user.Id,
+			Title: user.Username,
+			Thumb: session.metadata.User.Thumb,
 		},
 		Server: plexhooks.Server{
 			Uuid: serverIdentifier,
@@ -391,8 +464,8 @@ func (c *PlexClient) getMetadata(ratingKey string) *plex.MediaMetadata {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	userId := c.GetUserId(c.client.Token)
-	if userId <= 0 {
+	user := c.GetUser(c.client.Token)
+	if user == nil {
 		return nil
 	}
 
@@ -405,7 +478,7 @@ func (c *PlexClient) getMetadata(ratingKey string) *plex.MediaMetadata {
 	req.Header.Set(headerAccept, "application/json")
 
 	var resp *http.Response
-	cacheKey := fmt.Sprintf("%s:%s?%s=%s&%s=%d", cachePrefixMetadata, path, headerAccept, "json", headerUserId, userId)
+	cacheKey := fmt.Sprintf("%s:%s?%s=%s&%s=%d", cachePrefixMetadata, path, headerAccept, "json", headerUserId, user.Id)
 	isFromCache := false
 	if redisClient != nil {
 		b, err := redisClient.Get(context.Background(), cacheKey).Bytes()

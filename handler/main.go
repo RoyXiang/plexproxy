@@ -24,16 +24,18 @@ var (
 
 func init() {
 	plexClient = NewPlexClient(PlexConfig{
-		BaseUrl:  os.Getenv("PLEX_BASEURL"),
-		Token:    os.Getenv("PLEX_TOKEN"),
-		PlaxtUrl: os.Getenv("PLAXT_URL"),
+		BaseUrl:          os.Getenv("PLEX_BASEURL"),
+		Token:            os.Getenv("PLEX_TOKEN"),
+		PlaxtUrl:         os.Getenv("PLAXT_URL"),
+		RedirectWebApp:   os.Getenv("REDIRECT_WEB_APP"),
+		DisableTranscode: os.Getenv("DISABLE_TRANSCODE"),
 	})
 	if plexClient == nil {
 		log.Fatalln("Please configure PLEX_BASEURL as a valid URL at first")
 	}
 
 	redisUrl := os.Getenv("REDIS_URL")
-	if redisUrl != "" {
+	if redisUrl != "" && plexClient.IsTokenSet() {
 		options, err := redis.ParseURL(redisUrl)
 		if err == nil {
 			redisClient = redis.NewClient(options)

@@ -24,3 +24,8 @@ type sessionData struct {
 	lastEvent string
 	status    sessionStatus
 }
+
+type plexUser struct {
+	Id       int    `json:"id"`
+	Username string `json:"username"`
+}
