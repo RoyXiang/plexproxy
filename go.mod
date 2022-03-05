@@ -17,4 +17,4 @@ require (
 	github.com/google/uuid v1.3.0 // indirect
 )
 
-replace github.com/jrudio/go-plex-client v0.0.0-20220106065909-9e1d590b99aa => github.com/RoyXiang/go-plex-client v0.0.0-20220303081538-bac4a5c2593f
+replace github.com/jrudio/go-plex-client v0.0.0-20220106065909-9e1d590b99aa => github.com/RoyXiang/go-plex-client v0.0.0-20220305043318-06cfadcf82d7
