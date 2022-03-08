@@ -276,6 +276,11 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request) {
 	session := c.sessions[sessionKey]
 	sessionChanged := false
 
+	progress := int(math.Round(float64(viewOffset) / float64(session.metadata.Duration) * 100.0))
+	if session.status != sessionUnplayed && progress <= 0 {
+		return
+	}
+
 	serverIdentifier := c.getServerIdentifier()
 	if serverIdentifier == "" {
 		return
@@ -311,7 +316,6 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request) {
 	}
 
 	var event string
-	progress := int(math.Round(float64(viewOffset) / float64(session.metadata.Duration) * 100.0))
 	switch state {
 	case "playing":
 		if session.status == sessionPlaying {
