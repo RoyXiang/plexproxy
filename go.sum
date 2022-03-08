@@ -1,8 +1,8 @@
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
-github.com/RoyXiang/go-plex-client v0.0.0-20220305043318-06cfadcf82d7 h1:UirnG494f6HbVpTONQeAh3UtG8OWGuaCz6H6ezVkIHE=
-github.com/RoyXiang/go-plex-client v0.0.0-20220305043318-06cfadcf82d7/go.mod h1:twidbPLE4eUk3CgDno5uCzpnPRboBTElH+iJrQO7S4w=
+github.com/RoyXiang/go-plex-client v0.0.0-20220308082455-497f678c493c h1:5H9JuEg6FBIPzB7jraeGE02JuyMCdRv2ioZmpBDVEss=
+github.com/RoyXiang/go-plex-client v0.0.0-20220308082455-497f678c493c/go.mod h1:twidbPLE4eUk3CgDno5uCzpnPRboBTElH+iJrQO7S4w=
 github.com/armon/consul-api v0.0.0-20180202201655-eb2c6b5be1b6/go.mod h1:grANhF5doyWs3UAsr3K4I6qtAmlQcZDesFNEHPZAzj8=
 github.com/cespare/xxhash v1.1.0 h1:a6HrQnmkObjyL+Gs60czilIUGqrzKutQD6XZog3p+ko=
 github.com/cespare/xxhash v1.1.0/go.mod h1:XrSqR1VqqWfGrhpAt58auRo0WTKS1nRRg3ghfAqPWnc=
