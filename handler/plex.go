@@ -327,6 +327,10 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request) {
 		} else {
 			event = webhookEventPlay
 		}
+	case "buffering":
+		if progress >= watchedThreshold && session.status == sessionPlaying {
+			event = webhookEventScrobble
+		}
 	case "paused":
 		if progress >= watchedThreshold && session.status == sessionPlaying {
 			event = webhookEventScrobble
