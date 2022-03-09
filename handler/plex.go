@@ -106,7 +106,10 @@ func (a sessionData) Check(b sessionData) (bool, bool) {
 		return true, true
 	}
 	if a.progress != b.progress {
-		return true, false
+		if a.status == sessionPlaying {
+			return true, false
+		}
+		return true, true
 	}
 	if a.lastEvent != b.lastEvent {
 		return true, false
@@ -318,38 +321,32 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request, user *plexUser) {
 	}
 
 	var event string
+	var threshold int
 	switch state {
 	case "playing":
-		if session.status == sessionPlaying {
-			if progress >= 100 {
-				event = webhookEventScrobble
-			} else {
-				event = webhookEventResume
-			}
-		} else {
+		threshold = 100
+		if session.status == sessionUnplayed || session.status == sessionStopped {
 			event = webhookEventPlay
+		} else {
+			event = webhookEventResume
 		}
 	case "paused":
-		if progress >= watchedThreshold && session.status == sessionPlaying {
-			event = webhookEventScrobble
-		} else {
-			event = webhookEventPause
-		}
+		threshold = watchedThreshold
+		event = webhookEventPause
 	case "stopped":
-		if progress >= watchedThreshold && session.status == sessionPlaying {
-			event = webhookEventScrobble
-		} else {
-			event = webhookEventStop
-		}
+		threshold = watchedThreshold
+		event = webhookEventStop
 	}
 	if event == "" {
 		return
+	} else if progress >= threshold {
+		event = webhookEventScrobble
 	}
 	switch event {
 	case webhookEventPlay, webhookEventResume:
 		session.status = sessionPlaying
 	case webhookEventPause:
-		session.status = sessionStopped
+		session.status = sessionPaused
 	case webhookEventStop:
 		session.status = sessionStopped
 		go clearCachedMetadata(ratingKey, user.Id)
