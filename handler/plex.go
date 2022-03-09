@@ -359,11 +359,12 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request, user *plexUser) {
 	}
 	session.lastEvent = event
 	session.progress = progress
-	if shouldUpdate, shouldScrobble := session.Check(c.sessions[sessionKey]); shouldUpdate {
+	shouldUpdate, shouldScrobble := session.Check(c.sessions[sessionKey])
+	if shouldUpdate {
 		c.sessions[sessionKey] = session
-		if !shouldScrobble {
-			return
-		}
+	}
+	if !shouldScrobble {
+		return
 	}
 
 	serverIdentifier := c.getServerIdentifier()
