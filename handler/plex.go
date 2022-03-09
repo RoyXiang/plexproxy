@@ -102,6 +102,22 @@ func (u *plexUser) UnmarshalBinary(data []byte) error {
 	return json.Unmarshal(data, u)
 }
 
+func (a sessionData) Equal(b sessionData) bool {
+	if a.progress != b.progress {
+		return false
+	}
+	if a.lastEvent != b.lastEvent {
+		return false
+	}
+	if a.status != b.status {
+		return false
+	}
+	if len(a.guids) != len(b.guids) {
+		return false
+	}
+	return true
+}
+
 func (c *PlexClient) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.EscapedPath()
 	switch {
@@ -274,11 +290,15 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request) {
 		return
 	}
 	session := c.sessions[sessionKey]
-	sessionChanged := false
 
 	progress := int(math.Round(float64(viewOffset) / float64(session.metadata.Duration) * 100.0))
-	if session.status != sessionUnplayed && progress <= 0 {
-		return
+	if progress == 0 {
+		if session.progress >= watchedThreshold {
+			// time would become 0 once a playback session was finished
+			progress = 100
+		} else if session.status != sessionUnplayed {
+			return
+		}
 	}
 
 	serverIdentifier := c.getServerIdentifier()
@@ -310,7 +330,6 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request) {
 			})
 		}
 		session.guids = externalGuids
-		sessionChanged = true
 	} else {
 		externalGuids = session.guids
 	}
@@ -326,10 +345,6 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request) {
 			}
 		} else {
 			event = webhookEventPlay
-		}
-	case "buffering":
-		if progress >= watchedThreshold && session.status == sessionPlaying {
-			event = webhookEventScrobble
 		}
 	case "paused":
 		if progress >= watchedThreshold && session.status == sessionPlaying {
@@ -348,16 +363,16 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request) {
 		return
 	} else if event == webhookEventScrobble {
 		session.status = sessionWatched
-		sessionChanged = true
-		go clearCachedMetadata(ratingKey, r.Header.Get(headerToken))
+		go clearCachedMetadata(ratingKey, token)
 	} else if event == webhookEventStop {
-		go clearCachedMetadata(ratingKey, r.Header.Get(headerToken))
+		go clearCachedMetadata(ratingKey, token)
 	} else if session.status == sessionUnplayed {
 		session.status = sessionPlaying
-		sessionChanged = true
 	}
-	if sessionChanged || event != session.lastEvent {
-		session.lastEvent = event
+
+	session.lastEvent = event
+	session.progress = progress
+	if !session.Equal(c.sessions[sessionKey]) {
 		c.sessions[sessionKey] = session
 	} else {
 		return
