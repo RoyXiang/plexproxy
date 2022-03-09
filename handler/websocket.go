@@ -69,6 +69,6 @@ func wsOnActivity(n plex.NotificationContainer) {
 		}
 	}
 	if isMetadataChanged {
-		clearCachedMetadata("", "")
+		clearCachedMetadata("", 0)
 	}
 }

@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/RoyXiang/plexproxy/common"
-	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jrudio/go-plex-client"
 	"github.com/xanderstrike/plexhooks"
 )
@@ -120,29 +119,31 @@ func (a sessionData) Equal(b sessionData) bool {
 
 func (c *PlexClient) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.EscapedPath()
-	switch {
-	case path == "/video/:/transcode/universal/decision":
-		if c.disableTranscode {
-			r = c.disableTranscoding(r)
-		}
-	case strings.HasPrefix(path, "/web/"):
-		if c.redirectWebApp && r.Method == http.MethodGet {
-			http.Redirect(w, r, "https://app.plex.tv/desktop", http.StatusFound)
-			return
+	if c.redirectWebApp && strings.HasPrefix(path, "/web/") && r.Method == http.MethodGet {
+		http.Redirect(w, r, "https://app.plex.tv/desktop", http.StatusFound)
+		return
+	}
+
+	if token := r.Header.Get(headerToken); token != "" {
+		// If it is an authorized request
+		if user := c.GetUser(token); user != nil {
+			switch path {
+			case "/:/scrobble", "/:/unscrobble":
+				ratingKey := r.URL.Query().Get("key")
+				if ratingKey != "" {
+					go clearCachedMetadata(ratingKey, user.Id)
+				}
+			case "/:/timeline":
+				go c.syncTimelineWithPlaxt(r, user)
+			case "/video/:/transcode/universal/decision":
+				if c.disableTranscode {
+					r = c.disableTranscoding(r)
+				}
+			}
 		}
 	}
 
 	c.proxy.ServeHTTP(w, r)
-
-	if w.(middleware.WrapResponseWriter).Status() == http.StatusOK {
-		query := r.URL.Query()
-		switch path {
-		case "/:/scrobble", "/:/unscrobble":
-			go clearCachedMetadata(query.Get("key"), r.Header.Get(headerToken))
-		case "/:/timeline":
-			go c.syncTimelineWithPlaxt(r)
-		}
-	}
 }
 
 func (c *PlexClient) IsTokenSet() bool {
@@ -254,22 +255,16 @@ func (c *PlexClient) GetAccountInfo(token string) (user plex.UserPlexTV) {
 	return
 }
 
-func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request) {
+func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request, user *plexUser) {
 	if c.plaxtUrl == "" || !c.IsTokenSet() {
 		return
 	}
 
-	token := r.Header.Get(headerToken)
 	clientUuid := r.Header.Get(headerClientIdentity)
 	ratingKey := r.URL.Query().Get("ratingKey")
 	playbackTime := r.URL.Query().Get("time")
 	state := r.URL.Query().Get("state")
-	if token == "" || clientUuid == "" || ratingKey == "" || playbackTime == "" || state == "" {
-		return
-	}
-
-	user := c.GetUser(token)
-	if user == nil {
+	if clientUuid == "" || ratingKey == "" || playbackTime == "" || state == "" {
 		return
 	}
 
@@ -363,9 +358,9 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request) {
 		return
 	} else if event == webhookEventScrobble {
 		session.status = sessionWatched
-		go clearCachedMetadata(ratingKey, token)
+		go clearCachedMetadata(ratingKey, user.Id)
 	} else if event == webhookEventStop {
-		go clearCachedMetadata(ratingKey, token)
+		go clearCachedMetadata(ratingKey, user.Id)
 	} else if session.status == sessionUnplayed {
 		session.status = sessionPlaying
 	}
