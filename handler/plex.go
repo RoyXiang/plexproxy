@@ -297,6 +297,7 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request, user *plexUser) {
 		if session.progress >= watchedThreshold {
 			// time would become 0 once a playback session was finished
 			progress = 100
+			viewOffset = session.metadata.Duration
 		} else if session.status != sessionUnplayed {
 			return
 		}
