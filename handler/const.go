@@ -46,5 +46,6 @@ const (
 const (
 	sessionUnplayed sessionStatus = iota
 	sessionPlaying
+	sessionStopped
 	sessionWatched
 )

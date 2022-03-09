@@ -101,20 +101,20 @@ func (u *plexUser) UnmarshalBinary(data []byte) error {
 	return json.Unmarshal(data, u)
 }
 
-func (a sessionData) Equal(b sessionData) bool {
+func (a sessionData) Check(b sessionData) (bool, bool) {
+	if a.status != b.status {
+		return true, true
+	}
 	if a.progress != b.progress {
-		return false
+		return true, false
 	}
 	if a.lastEvent != b.lastEvent {
-		return false
-	}
-	if a.status != b.status {
-		return false
+		return true, false
 	}
 	if len(a.guids) != len(b.guids) {
-		return false
+		return true, false
 	}
-	return true
+	return false, false
 }
 
 func (c *PlexClient) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -285,6 +285,9 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request, user *plexUser) {
 		return
 	}
 	session := c.sessions[sessionKey]
+	if session.status == sessionWatched {
+		return
+	}
 
 	progress := int(math.Round(float64(viewOffset) / float64(session.metadata.Duration) * 100.0))
 	if progress == 0 {
@@ -294,21 +297,6 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request, user *plexUser) {
 		} else if session.status != sessionUnplayed {
 			return
 		}
-	}
-
-	serverIdentifier := c.getServerIdentifier()
-	if serverIdentifier == "" {
-		return
-	}
-	var section plex.Directory
-	sectionId := session.metadata.LibrarySectionID.String()
-	if c.getLibrarySection(sectionId) {
-		section = c.sections[sectionId]
-		if section.Type != "show" && section.Type != "movie" {
-			return
-		}
-	} else {
-		return
 	}
 
 	externalGuids := make([]plexhooks.ExternalGuid, 0)
@@ -354,21 +342,41 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request, user *plexUser) {
 			event = webhookEventStop
 		}
 	}
-	if event == "" || session.status == sessionWatched {
+	if event == "" {
 		return
-	} else if event == webhookEventScrobble {
+	}
+	switch event {
+	case webhookEventPlay, webhookEventResume:
+		session.status = sessionPlaying
+	case webhookEventPause:
+		session.status = sessionStopped
+	case webhookEventStop:
+		session.status = sessionStopped
+		go clearCachedMetadata(ratingKey, user.Id)
+	case webhookEventScrobble:
 		session.status = sessionWatched
 		go clearCachedMetadata(ratingKey, user.Id)
-	} else if event == webhookEventStop {
-		go clearCachedMetadata(ratingKey, user.Id)
-	} else if session.status == sessionUnplayed {
-		session.status = sessionPlaying
 	}
-
 	session.lastEvent = event
 	session.progress = progress
-	if !session.Equal(c.sessions[sessionKey]) {
+	if shouldUpdate, shouldScrobble := session.Check(c.sessions[sessionKey]); shouldUpdate {
 		c.sessions[sessionKey] = session
+		if !shouldScrobble {
+			return
+		}
+	}
+
+	serverIdentifier := c.getServerIdentifier()
+	if serverIdentifier == "" {
+		return
+	}
+	var section plex.Directory
+	sectionId := session.metadata.LibrarySectionID.String()
+	if c.getLibrarySection(sectionId) {
+		section = c.sections[sectionId]
+		if section.Type != "show" && section.Type != "movie" {
+			return
+		}
 	} else {
 		return
 	}
