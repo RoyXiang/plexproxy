@@ -14,6 +14,13 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
+func wrapResponseWriter(w http.ResponseWriter, protoMajor int) middleware.WrapResponseWriter {
+	if nw, ok := w.(middleware.WrapResponseWriter); ok {
+		return nw
+	}
+	return middleware.NewWrapResponseWriter(w, protoMajor)
+}
+
 func modifyResponse(resp *http.Response) error {
 	contentType := resp.Header.Get(headerContentType)
 	if contentType == "" {

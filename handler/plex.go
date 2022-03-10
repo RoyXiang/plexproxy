@@ -27,6 +27,7 @@ type PlexConfig struct {
 	PlaxtUrl         string
 	RedirectWebApp   string
 	DisableTranscode string
+	NoRequestLogs    string
 }
 
 type PlexClient struct {
@@ -36,6 +37,7 @@ type PlexClient struct {
 	plaxtUrl         string
 	redirectWebApp   bool
 	disableTranscode bool
+	NoRequestLogs    bool
 
 	serverIdentifier *string
 	sections         map[string]plex.Directory
@@ -70,7 +72,7 @@ func NewPlexClient(config PlexConfig) *PlexClient {
 		plaxtUrl = u.String()
 	}
 
-	var redirectWebApp, disableTranscode bool
+	var redirectWebApp, disableTranscode, noRequestLogs bool
 	if b, err := strconv.ParseBool(config.RedirectWebApp); err == nil {
 		redirectWebApp = b
 	} else {
@@ -81,6 +83,11 @@ func NewPlexClient(config PlexConfig) *PlexClient {
 	} else {
 		disableTranscode = true
 	}
+	if b, err := strconv.ParseBool(config.NoRequestLogs); err == nil {
+		noRequestLogs = b
+	} else {
+		noRequestLogs = false
+	}
 
 	return &PlexClient{
 		proxy:            proxy,
@@ -88,6 +95,7 @@ func NewPlexClient(config PlexConfig) *PlexClient {
 		plaxtUrl:         plaxtUrl,
 		redirectWebApp:   redirectWebApp,
 		disableTranscode: disableTranscode,
+		NoRequestLogs:    noRequestLogs,
 		sections:         make(map[string]plex.Directory, 0),
 		sessions:         make(map[string]sessionData),
 		friends:          make(map[string]plexUser),

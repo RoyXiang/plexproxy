@@ -27,6 +27,7 @@ func init() {
 		PlaxtUrl:         os.Getenv("PLAXT_URL"),
 		RedirectWebApp:   os.Getenv("REDIRECT_WEB_APP"),
 		DisableTranscode: os.Getenv("DISABLE_TRANSCODE"),
+		NoRequestLogs:    os.Getenv("NO_REQUEST_LOGS"),
 	})
 	if plexClient == nil {
 		log.Fatalln("Please configure PLEX_BASEURL as a valid URL at first")
@@ -44,9 +45,10 @@ func init() {
 func NewRouter() http.Handler {
 	r := mux.NewRouter()
 	r.Use(normalizeMiddleware)
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
-	r.Use(trafficMiddleware)
+	if !plexClient.NoRequestLogs {
+		r.Use(middleware.Logger)
+	}
+	r.Use(wrapMiddleware, middleware.Recoverer, trafficMiddleware)
 
 	if redisClient != nil {
 		// bypass cache

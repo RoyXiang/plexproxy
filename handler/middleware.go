@@ -12,8 +12,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/go-chi/chi/v5/middleware"
 )
 
 var (
@@ -71,6 +69,12 @@ func normalizeMiddleware(next http.Handler) http.Handler {
 			nr.RemoteAddr = fwd
 		}
 		next.ServeHTTP(w, nr)
+	})
+}
+
+func wrapMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(wrapResponseWriter(w, r.ProtoMajor), r)
 	})
 }
 
@@ -148,7 +152,7 @@ func cacheMiddleware(next http.Handler) http.Handler {
 				resp, _ = http.ReadResponse(reader, r)
 			}
 			if resp == nil {
-				nw := middleware.NewWrapResponseWriter(httptest.NewRecorder(), r.ProtoMajor)
+				nw := wrapResponseWriter(httptest.NewRecorder(), r.ProtoMajor)
 				next.ServeHTTP(nw, r)
 				resp = nw.Unwrap().(*httptest.ResponseRecorder).Result()
 				defer func() {
