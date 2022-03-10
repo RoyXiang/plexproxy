@@ -137,21 +137,19 @@ func (c *PlexClient) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if token := r.Header.Get(headerToken); token != "" {
-		// If it is an authorized request
-		if user := c.GetUser(token); user != nil {
-			switch path {
-			case "/:/scrobble", "/:/unscrobble":
-				ratingKey := r.URL.Query().Get("key")
-				if ratingKey != "" {
-					go clearCachedMetadata(ratingKey, user.Id)
-				}
-			case "/:/timeline":
-				go c.syncTimelineWithPlaxt(r, user)
-			case "/video/:/transcode/universal/decision":
-				if c.disableTranscode {
-					r = c.disableTranscoding(r)
-				}
+	// If it is an authorized request
+	if user := r.Context().Value(userCtxKey); user != nil {
+		switch path {
+		case "/:/scrobble", "/:/unscrobble":
+			ratingKey := r.URL.Query().Get("key")
+			if ratingKey != "" {
+				go clearCachedMetadata(ratingKey, user.(*plexUser).Id)
+			}
+		case "/:/timeline":
+			go c.syncTimelineWithPlaxt(r, user.(*plexUser))
+		case "/video/:/transcode/universal/decision":
+			if c.disableTranscode {
+				r = c.disableTranscoding(r)
 			}
 		}
 	}

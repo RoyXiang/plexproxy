@@ -16,6 +16,7 @@ import (
 
 var (
 	cacheInfoCtxKey = &ctxKeyType{"cacheInfo"}
+	userCtxKey      = &ctxKeyType{"user"}
 )
 
 func normalizeMiddleware(next http.Handler) http.Handler {
@@ -74,6 +75,11 @@ func normalizeMiddleware(next http.Handler) http.Handler {
 
 func wrapMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if token := r.Header.Get(headerToken); token != "" {
+			if user := plexClient.GetUser(token); user != nil {
+				r = r.WithContext(context.WithValue(r.Context(), userCtxKey, user))
+			}
+		}
 		next.ServeHTTP(wrapResponseWriter(w, r.ProtoMajor), r)
 	})
 }
@@ -185,16 +191,12 @@ func cacheMiddleware(next http.Handler) http.Handler {
 		case cachePrefixStatic:
 			break
 		case cachePrefixDynamic, cachePrefixMetadata:
-			token := r.Header.Get(headerToken)
-			if token == "" {
-				return
-			}
-			user := plexClient.GetUser(token)
+			user := r.Context().Value(userCtxKey)
 			if user != nil {
-				params.Set(headerUserId, strconv.Itoa(user.Id))
+				params.Set(headerUserId, strconv.Itoa(user.(*plexUser).Id))
 				params.Set(headerAccept, getAcceptContentType(r))
 			} else {
-				params.Set(headerToken, token)
+				return
 			}
 		default:
 			// invalid prefix
