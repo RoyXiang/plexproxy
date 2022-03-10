@@ -58,6 +58,8 @@ func NewRouter() http.Handler {
 		staticRouter.Path("/library/metadata/{key}/art/{id}").Handler(plexClient)
 		staticRouter.Path("/library/metadata/{key}/thumb/{id}").Handler(plexClient)
 		staticRouter.Path("/photo/:/transcode").Handler(plexClient)
+		staticRouter.PathPrefix("/web/js/").Handler(plexClient)
+		staticRouter.PathPrefix("/web/static/").Handler(plexClient)
 
 		dynamicRouter := r.Methods(http.MethodGet).Subrouter()
 		dynamicRouter.Use(dynamicMiddleware)

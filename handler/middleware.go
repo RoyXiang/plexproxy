@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -116,20 +117,40 @@ func staticMiddleware(next http.Handler) http.Handler {
 
 func dynamicMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := context.WithValue(r.Context(), cacheInfoCtxKey, &cacheInfo{
-			Prefix: cachePrefixDynamic,
-			Ttl:    cacheTtlDynamic,
-		})
-		r = r.WithContext(ctx)
-		cacheMiddleware(next).ServeHTTP(w, r)
+		var ctx context.Context
+		switch filepath.Ext(r.URL.EscapedPath()) {
+		case ".css", ".ico", ".jpeg", ".jpg", ".webp":
+			ctx = context.WithValue(r.Context(), cacheInfoCtxKey, &cacheInfo{
+				Prefix: cachePrefixStatic,
+				Ttl:    cacheTtlStatic,
+			})
+		case ".m3u8", ".ts":
+			ctx = r.Context()
+		default:
+			if rh := r.Header.Get(headerRange); rh != "" {
+				ctx = r.Context()
+				break
+			}
+			ctx = context.WithValue(r.Context(), cacheInfoCtxKey, &cacheInfo{
+				Prefix: cachePrefixDynamic,
+				Ttl:    cacheTtlDynamic,
+			})
+		}
+		cacheMiddleware(next).ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
 func cacheMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctxValue := r.Context().Value(cacheInfoCtxKey)
+		if ctxValue == nil {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		var cacheKey string
 		ctx := context.Background()
-		info := r.Context().Value(cacheInfoCtxKey).(*cacheInfo)
+		info := ctxValue.(*cacheInfo)
 
 		defer func() {
 			if cacheKey == "" {
@@ -168,9 +189,6 @@ func cacheMiddleware(next http.Handler) http.Handler {
 				w.Header()[k] = v
 			}
 		}()
-		if isStreamRequest(r) {
-			return
-		}
 		params := r.URL.Query()
 		switch info.Prefix {
 		case cachePrefixStatic:

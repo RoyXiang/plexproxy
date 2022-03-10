@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"path/filepath"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -83,17 +82,6 @@ func getIP(r *http.Request) string {
 		addr = fwd
 	}
 	return addr
-}
-
-func isStreamRequest(r *http.Request) bool {
-	if rangeInHeader := r.Header.Get(headerRange); rangeInHeader != "" {
-		return true
-	}
-	switch filepath.Ext(r.URL.EscapedPath()) {
-	case ".m3u8", ".ts":
-		return true
-	}
-	return false
 }
 
 func getAcceptContentType(r *http.Request) string {
