@@ -34,6 +34,10 @@ const (
 	contentTypeAny = "*/*"
 	contentTypeXml = "xml"
 
+	lockKeyFriends  = "plex:friends"
+	lockKeySections = "plex:library:sections"
+	lockKeySessions = "plex:playback:sessions"
+
 	watchedThreshold = 90
 
 	webhookEventPlay     = "media.play"

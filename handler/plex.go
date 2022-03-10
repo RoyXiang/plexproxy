@@ -181,10 +181,9 @@ func (c *PlexClient) SubscribeToNotifications(events *plex.NotificationEvents, i
 	c.client.SubscribeToNotifications(events, interrupt, fn)
 }
 
-func (c *PlexClient) GetUser(token string) (user *plexUser) {
+func (c *PlexClient) GetUser(token string) *plexUser {
 	if realUser, ok := c.friends[token]; ok {
-		user = &realUser
-		return
+		return &realUser
 	}
 
 	var err error
@@ -193,17 +192,22 @@ func (c *PlexClient) GetUser(token string) (user *plexUser) {
 
 	isCacheEnabled := redisClient != nil
 	if isCacheEnabled {
-		err = redisClient.Get(ctx, cacheKey).Scan(user)
+		var result plexUser
+		err = redisClient.Get(ctx, cacheKey).Scan(&result)
 		if err == nil {
-			c.friends[token] = *user
-			return
+			c.friends[token] = result
+			return &result
 		}
 	}
 
+	c.MulLock.Lock(lockKeyFriends)
+	defer c.MulLock.Unlock(lockKeyFriends)
+
 	response := c.GetSharedServers()
 	if response == nil {
-		return
+		return nil
 	}
+	var user *plexUser
 	for _, friend := range response.Friends {
 		realUser := plexUser{
 			Id:       friend.UserId,
@@ -219,7 +223,7 @@ func (c *PlexClient) GetUser(token string) (user *plexUser) {
 		}
 	}
 	if user != nil {
-		return
+		return user
 	}
 
 	info := c.GetAccountInfo(token)
@@ -230,7 +234,7 @@ func (c *PlexClient) GetUser(token string) (user *plexUser) {
 			redisClient.Set(ctx, cacheKey, user, 0)
 		}
 	}
-	return
+	return user
 }
 
 func (c *PlexClient) GetSharedServers() *plex.SharedServersResponse {
@@ -447,8 +451,12 @@ func (c *PlexClient) getLibrarySection(sectionKey string) (isFound bool) {
 		return
 	}
 
+	c.MulLock.Lock(lockKeySections)
 	c.mu.RLock()
-	defer c.mu.RUnlock()
+	defer func() {
+		c.mu.RUnlock()
+		c.MulLock.Unlock(lockKeySections)
+	}()
 
 	sections, err := c.client.GetLibraries()
 	if err != nil {
@@ -474,8 +482,12 @@ func (c *PlexClient) getPlayerSession(playerIdentifier, ratingKey string) (sessi
 		}
 	}
 
+	c.MulLock.Lock(lockKeySessions)
 	c.mu.RLock()
-	defer c.mu.RUnlock()
+	defer func() {
+		c.mu.RUnlock()
+		c.MulLock.Unlock(lockKeySessions)
+	}()
 
 	sessions, err := c.client.GetSessions()
 	if err != nil {
