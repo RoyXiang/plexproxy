@@ -84,11 +84,11 @@ func trafficMiddleware(next http.Handler) http.Handler {
 			params.Set(headerRange, rg)
 		}
 		lockKey := fmt.Sprintf("%s?%s", r.URL.EscapedPath(), params.Encode())
-		if !ml.TryLock(lockKey, time.Second) {
+		if !plexClient.MulLock.TryLock(lockKey, time.Second) {
 			w.WriteHeader(http.StatusGatewayTimeout)
 			return
 		}
-		defer ml.Unlock(lockKey)
+		defer plexClient.MulLock.Unlock(lockKey)
 		next.ServeHTTP(w, r)
 	})
 }

@@ -15,7 +15,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/RoyXiang/plexproxy/common"
 	"github.com/jrudio/go-plex-client"
@@ -44,6 +43,8 @@ type PlexClient struct {
 	friends          map[string]plexUser
 
 	mu sync.RWMutex
+
+	MulLock common.MultipleLock
 }
 
 func NewPlexClient(config PlexConfig) *PlexClient {
@@ -90,6 +91,7 @@ func NewPlexClient(config PlexConfig) *PlexClient {
 		sections:         make(map[string]plex.Directory, 0),
 		sessions:         make(map[string]sessionData),
 		friends:          make(map[string]plexUser),
+		MulLock:          common.NewMultipleLock(),
 	}
 }
 
@@ -282,16 +284,13 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request, user *plexUser) {
 		return
 	}
 	lockKey := fmt.Sprintf("plex:session:%s", sessionKey)
-	if ml.TryLock(lockKey, time.Second) {
-		defer ml.Unlock(lockKey)
-	} else {
-		return
-	}
+	c.MulLock.Lock(lockKey)
+	defer c.MulLock.Unlock(lockKey)
+
 	session := c.sessions[sessionKey]
 	if session.status == sessionWatched {
 		return
 	}
-
 	progress := int(math.Round(float64(viewOffset) / float64(session.metadata.Duration) * 100.0))
 	if progress == 0 {
 		if session.progress >= watchedThreshold {
@@ -352,14 +351,15 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request, user *plexUser) {
 		session.status = sessionStopped
 		go clearCachedMetadata(ratingKey, user.Id)
 	case webhookEventScrobble:
-		session.status = sessionWatched
 		go clearCachedMetadata(ratingKey, user.Id)
 	}
 	session.lastEvent = event
 	session.progress = progress
 	shouldUpdate, shouldScrobble := session.Check(c.sessions[sessionKey])
 	if shouldUpdate {
-		c.sessions[sessionKey] = session
+		defer func() {
+			c.sessions[sessionKey] = session
+		}()
 	}
 	if !shouldScrobble {
 		return
@@ -407,7 +407,16 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request, user *plexUser) {
 		},
 	}
 	b, _ := json.Marshal(webhook)
-	_, _ = c.client.HTTPClient.Post(c.plaxtUrl, "application/json", bytes.NewBuffer(b))
+	resp, err := c.client.HTTPClient.Post(c.plaxtUrl, "application/json", bytes.NewBuffer(b))
+	if err != nil {
+		return
+	}
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(resp.Body)
+	if event == webhookEventScrobble && resp.StatusCode == http.StatusOK {
+		session.status = sessionWatched
+	}
 }
 
 func (c *PlexClient) getServerIdentifier() string {

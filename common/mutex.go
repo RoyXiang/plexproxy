@@ -24,6 +24,10 @@ func (m *timedMutex) tryLock(timeout time.Duration) bool {
 	return false
 }
 
+func (m *timedMutex) lock() {
+	m.c <- struct{}{}
+}
+
 func (m *timedMutex) unlock() {
 	<-m.c
 }

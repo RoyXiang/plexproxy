@@ -6,7 +6,6 @@ import (
 	"os"
 	"sync"
 
-	"github.com/RoyXiang/plexproxy/common"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/mux"
@@ -19,7 +18,6 @@ var (
 	emptyStruct = struct{}{}
 
 	mu sync.RWMutex
-	ml common.MultipleLock
 )
 
 func init() {
@@ -41,8 +39,6 @@ func init() {
 			redisClient = redis.NewClient(options)
 		}
 	}
-
-	ml = common.NewMultipleLock()
 }
 
 func NewRouter() http.Handler {
