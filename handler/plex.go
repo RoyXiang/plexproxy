@@ -416,9 +416,10 @@ func (c *PlexClient) getServerIdentifier() string {
 		defer c.mu.RUnlock()
 
 		identity, err := c.client.GetServerIdentity()
-		if err == nil {
-			c.serverIdentifier = &identity.MediaContainer.MachineIdentifier
+		if err != nil {
+			return ""
 		}
+		c.serverIdentifier = &identity.MediaContainer.MachineIdentifier
 	}
 	return *c.serverIdentifier
 }
