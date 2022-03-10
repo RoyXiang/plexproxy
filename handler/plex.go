@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/RoyXiang/plexproxy/common"
-	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jrudio/go-plex-client"
 	"github.com/xanderstrike/plexhooks"
 )
@@ -102,31 +101,52 @@ func (u *plexUser) UnmarshalBinary(data []byte) error {
 	return json.Unmarshal(data, u)
 }
 
+func (a sessionData) Check(b sessionData) (bool, bool) {
+	if a.status != b.status {
+		return true, true
+	}
+	if a.progress != b.progress {
+		if a.status == sessionPlaying {
+			return true, false
+		}
+		return true, true
+	}
+	if a.lastEvent != b.lastEvent {
+		return true, false
+	}
+	if len(a.guids) != len(b.guids) {
+		return true, false
+	}
+	return false, false
+}
+
 func (c *PlexClient) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.EscapedPath()
-	switch {
-	case path == "/video/:/transcode/universal/decision":
-		if c.disableTranscode {
-			r = c.disableTranscoding(r)
-		}
-	case strings.HasPrefix(path, "/web/"):
-		if c.redirectWebApp && r.Method == http.MethodGet {
-			http.Redirect(w, r, "https://app.plex.tv/desktop", http.StatusFound)
-			return
+	if c.redirectWebApp && strings.HasPrefix(path, "/web/") && r.Method == http.MethodGet {
+		http.Redirect(w, r, "https://app.plex.tv/desktop", http.StatusFound)
+		return
+	}
+
+	if token := r.Header.Get(headerToken); token != "" {
+		// If it is an authorized request
+		if user := c.GetUser(token); user != nil {
+			switch path {
+			case "/:/scrobble", "/:/unscrobble":
+				ratingKey := r.URL.Query().Get("key")
+				if ratingKey != "" {
+					go clearCachedMetadata(ratingKey, user.Id)
+				}
+			case "/:/timeline":
+				go c.syncTimelineWithPlaxt(r, user)
+			case "/video/:/transcode/universal/decision":
+				if c.disableTranscode {
+					r = c.disableTranscoding(r)
+				}
+			}
 		}
 	}
 
 	c.proxy.ServeHTTP(w, r)
-
-	if w.(middleware.WrapResponseWriter).Status() == http.StatusOK {
-		query := r.URL.Query()
-		switch path {
-		case "/:/scrobble", "/:/unscrobble":
-			go clearCachedMetadata(query.Get("key"), r.Header.Get(headerToken))
-		case "/:/timeline":
-			go c.syncTimelineWithPlaxt(r)
-		}
-	}
 }
 
 func (c *PlexClient) IsTokenSet() bool {
@@ -238,22 +258,16 @@ func (c *PlexClient) GetAccountInfo(token string) (user plex.UserPlexTV) {
 	return
 }
 
-func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request) {
+func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request, user *plexUser) {
 	if c.plaxtUrl == "" || !c.IsTokenSet() {
 		return
 	}
 
-	token := r.Header.Get(headerToken)
 	clientUuid := r.Header.Get(headerClientIdentity)
 	ratingKey := r.URL.Query().Get("ratingKey")
 	playbackTime := r.URL.Query().Get("time")
 	state := r.URL.Query().Get("state")
-	if token == "" || clientUuid == "" || ratingKey == "" || playbackTime == "" || state == "" {
-		return
-	}
-
-	user := c.GetUser(token)
-	if user == nil {
+	if clientUuid == "" || ratingKey == "" || playbackTime == "" || state == "" {
 		return
 	}
 
@@ -274,21 +288,19 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request) {
 		return
 	}
 	session := c.sessions[sessionKey]
-	sessionChanged := false
-
-	serverIdentifier := c.getServerIdentifier()
-	if serverIdentifier == "" {
+	if session.status == sessionWatched {
 		return
 	}
-	var section plex.Directory
-	sectionId := session.metadata.LibrarySectionID.String()
-	if c.getLibrarySection(sectionId) {
-		section = c.sections[sectionId]
-		if section.Type != "show" && section.Type != "movie" {
+
+	progress := int(math.Round(float64(viewOffset) / float64(session.metadata.Duration) * 100.0))
+	if progress == 0 {
+		if session.progress >= watchedThreshold {
+			// time would become 0 once a playback session was finished
+			progress = 100
+			viewOffset = session.metadata.Duration
+		} else if session.status != sessionUnplayed {
 			return
 		}
-	} else {
-		return
 	}
 
 	externalGuids := make([]plexhooks.ExternalGuid, 0)
@@ -305,52 +317,65 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request) {
 			})
 		}
 		session.guids = externalGuids
-		sessionChanged = true
 	} else {
 		externalGuids = session.guids
 	}
 
 	var event string
-	progress := int(math.Round(float64(viewOffset) / float64(session.metadata.Duration) * 100.0))
+	var threshold int
 	switch state {
 	case "playing":
-		if session.status == sessionPlaying {
-			if progress >= 100 {
-				event = webhookEventScrobble
-			} else {
-				event = webhookEventResume
-			}
-		} else {
+		threshold = 100
+		if session.status == sessionUnplayed || session.status == sessionStopped {
 			event = webhookEventPlay
+		} else {
+			event = webhookEventResume
 		}
 	case "paused":
-		if progress >= watchedThreshold && session.status == sessionPlaying {
-			event = webhookEventScrobble
-		} else {
-			event = webhookEventPause
-		}
+		threshold = watchedThreshold
+		event = webhookEventPause
 	case "stopped":
-		if progress >= watchedThreshold && session.status == sessionPlaying {
-			event = webhookEventScrobble
-		} else {
-			event = webhookEventStop
-		}
+		threshold = watchedThreshold
+		event = webhookEventStop
 	}
-	if event == "" || session.status == sessionWatched {
+	if event == "" {
 		return
-	} else if event == webhookEventScrobble {
-		session.status = sessionWatched
-		sessionChanged = true
-		go clearCachedMetadata(ratingKey, r.Header.Get(headerToken))
-	} else if event == webhookEventStop {
-		go clearCachedMetadata(ratingKey, r.Header.Get(headerToken))
-	} else if session.status == sessionUnplayed {
-		session.status = sessionPlaying
-		sessionChanged = true
+	} else if progress >= threshold {
+		event = webhookEventScrobble
 	}
-	if sessionChanged || event != session.lastEvent {
-		session.lastEvent = event
+	switch event {
+	case webhookEventPlay, webhookEventResume:
+		session.status = sessionPlaying
+	case webhookEventPause:
+		session.status = sessionPaused
+	case webhookEventStop:
+		session.status = sessionStopped
+		go clearCachedMetadata(ratingKey, user.Id)
+	case webhookEventScrobble:
+		session.status = sessionWatched
+		go clearCachedMetadata(ratingKey, user.Id)
+	}
+	session.lastEvent = event
+	session.progress = progress
+	shouldUpdate, shouldScrobble := session.Check(c.sessions[sessionKey])
+	if shouldUpdate {
 		c.sessions[sessionKey] = session
+	}
+	if !shouldScrobble {
+		return
+	}
+
+	serverIdentifier := c.getServerIdentifier()
+	if serverIdentifier == "" {
+		return
+	}
+	var section plex.Directory
+	sectionId := session.metadata.LibrarySectionID.String()
+	if c.getLibrarySection(sectionId) {
+		section = c.sections[sectionId]
+		if section.Type != "show" && section.Type != "movie" {
+			return
+		}
 	} else {
 		return
 	}
@@ -391,9 +416,10 @@ func (c *PlexClient) getServerIdentifier() string {
 		defer c.mu.RUnlock()
 
 		identity, err := c.client.GetServerIdentity()
-		if err == nil {
-			c.serverIdentifier = &identity.MediaContainer.MachineIdentifier
+		if err != nil {
+			return ""
 		}
+		c.serverIdentifier = &identity.MediaContainer.MachineIdentifier
 	}
 	return *c.serverIdentifier
 }

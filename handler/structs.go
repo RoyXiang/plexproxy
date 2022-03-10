@@ -23,6 +23,7 @@ type sessionData struct {
 	guids     []plexhooks.ExternalGuid
 	lastEvent string
 	status    sessionStatus
+	progress  int
 }
 
 type plexUser struct {
