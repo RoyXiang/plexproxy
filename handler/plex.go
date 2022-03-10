@@ -356,10 +356,8 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request, user *plexUser) {
 		session.status = sessionPlaying
 	case webhookEventPause:
 		session.status = sessionPaused
-	case webhookEventStop:
+	case webhookEventStop, webhookEventScrobble:
 		session.status = sessionStopped
-		go clearCachedMetadata(ratingKey, user.Id)
-	case webhookEventScrobble:
 		go clearCachedMetadata(ratingKey, user.Id)
 	}
 	session.lastEvent = event
