@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -123,28 +122,4 @@ func writeToCache(key string, resp *http.Response, ttl time.Duration) {
 		return
 	}
 	redisClient.Set(context.Background(), key, b, ttl)
-}
-
-func clearCachedMetadata(ratingKey string, userId int) {
-	if redisClient == nil {
-		return
-	}
-
-	mu.Lock()
-	defer mu.Unlock()
-
-	pattern := cachePrefixMetadata + ":"
-	if ratingKey != "" {
-		pattern += fmt.Sprintf("/library/metadata/%s", ratingKey)
-	}
-	if userId > 0 {
-		pattern += fmt.Sprintf("*%s=%d", headerUserId, userId)
-	}
-	pattern += "*"
-
-	ctx := context.Background()
-	keys := redisClient.Keys(ctx, pattern).Val()
-	if len(keys) > 0 {
-		redisClient.Del(ctx, keys...).Val()
-	}
 }

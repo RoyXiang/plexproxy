@@ -114,17 +114,6 @@ func staticMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func metadataMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := context.WithValue(r.Context(), cacheInfoCtxKey, &cacheInfo{
-			Prefix: cachePrefixMetadata,
-			Ttl:    cacheTtlMetadata,
-		})
-		r = r.WithContext(ctx)
-		cacheMiddleware(next).ServeHTTP(w, r)
-	})
-}
-
 func dynamicMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), cacheInfoCtxKey, &cacheInfo{
@@ -141,10 +130,6 @@ func cacheMiddleware(next http.Handler) http.Handler {
 		var cacheKey string
 		ctx := context.Background()
 		info := r.Context().Value(cacheInfoCtxKey).(*cacheInfo)
-		if info.Prefix == cachePrefixMetadata {
-			mu.RLock()
-			defer mu.RUnlock()
-		}
 
 		defer func() {
 			if cacheKey == "" {
@@ -190,7 +175,7 @@ func cacheMiddleware(next http.Handler) http.Handler {
 		switch info.Prefix {
 		case cachePrefixStatic:
 			break
-		case cachePrefixDynamic, cachePrefixMetadata:
+		case cachePrefixDynamic:
 			user := r.Context().Value(userCtxKey)
 			if user != nil {
 				params.Set(headerUserId, strconv.Itoa(user.(*plexUser).Id))

@@ -4,7 +4,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"sync"
 
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-redis/redis/v8"
@@ -16,8 +15,6 @@ var (
 	redisClient *redis.Client
 
 	emptyStruct = struct{}{}
-
-	mu sync.RWMutex
 )
 
 func init() {
@@ -34,7 +31,7 @@ func init() {
 	}
 
 	redisUrl := os.Getenv("REDIS_URL")
-	if redisUrl != "" && plexClient.IsTokenSet() {
+	if redisUrl != "" {
 		options, err := redis.ParseURL(redisUrl)
 		if err == nil {
 			redisClient = redis.NewClient(options)
@@ -61,12 +58,6 @@ func NewRouter() http.Handler {
 		staticRouter.Path("/library/metadata/{key}/art/{id}").Handler(plexClient)
 		staticRouter.Path("/library/metadata/{key}/thumb/{id}").Handler(plexClient)
 		staticRouter.Path("/photo/:/transcode").Handler(plexClient)
-
-		metadataRouter := r.Methods(http.MethodGet).PathPrefix("/library").Subrouter()
-		metadataRouter.Use(metadataMiddleware)
-		metadataRouter.PathPrefix("/collections/").Handler(plexClient)
-		metadataRouter.PathPrefix("/metadata/").Handler(plexClient)
-		metadataRouter.PathPrefix("/sections/").Handler(plexClient)
 
 		dynamicRouter := r.Methods(http.MethodGet).Subrouter()
 		dynamicRouter.Use(dynamicMiddleware)

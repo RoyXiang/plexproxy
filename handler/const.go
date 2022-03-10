@@ -22,14 +22,12 @@ const (
 	headerRealIP         = "X-Real-IP"
 	headerVary           = "Vary"
 
-	cachePrefixDynamic  = "dynamic"
-	cachePrefixMetadata = "metadata"
-	cachePrefixStatic   = "static"
-	cachePrefixPlex     = "plex"
+	cachePrefixDynamic = "dynamic"
+	cachePrefixStatic  = "static"
+	cachePrefixPlex    = "plex"
 
-	cacheTtlDynamic  = time.Second * 5
-	cacheTtlMetadata = time.Hour * 24
-	cacheTtlStatic   = time.Hour
+	cacheTtlDynamic = time.Second * 5
+	cacheTtlStatic  = time.Hour
 
 	contentTypeAny = "*/*"
 	contentTypeXml = "xml"

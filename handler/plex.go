@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -140,11 +139,6 @@ func (c *PlexClient) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// If it is an authorized request
 	if user := r.Context().Value(userCtxKey); user != nil {
 		switch path {
-		case "/:/scrobble", "/:/unscrobble":
-			ratingKey := r.URL.Query().Get("key")
-			if ratingKey != "" {
-				go clearCachedMetadata(ratingKey, user.(*plexUser).Id)
-			}
 		case "/:/timeline":
 			go c.syncTimelineWithPlaxt(r, user.(*plexUser))
 		case "/video/:/transcode/universal/decision":
@@ -360,7 +354,6 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request, user *plexUser) {
 		session.status = sessionPaused
 	case webhookEventStop, webhookEventScrobble:
 		session.status = sessionStopped
-		go clearCachedMetadata(ratingKey, user.Id)
 	}
 	session.lastEvent = event
 	session.progress = progress
@@ -519,55 +512,12 @@ func (c *PlexClient) getMetadata(ratingKey string) *plex.MediaMetadata {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	user := c.GetUser(c.client.Token)
-	if user == nil {
-		return nil
-	}
-
-	path := fmt.Sprintf("/library/metadata/%s", ratingKey)
-	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s%s", c.client.URL, path), nil)
-	if err != nil {
-		return nil
-	}
-	req.Header.Set(headerToken, c.client.Token)
-	req.Header.Set(headerAccept, "application/json")
-
-	var resp *http.Response
-	cacheKey := fmt.Sprintf("%s:%s?%s=%s&%s=%d", cachePrefixMetadata, path, headerAccept, "json", headerUserId, user.Id)
-	isFromCache := false
-	if redisClient != nil {
-		b, err := redisClient.Get(context.Background(), cacheKey).Bytes()
-		if err == nil {
-			reader := bufio.NewReader(bytes.NewReader(b))
-			resp, _ = http.ReadResponse(reader, req)
-			isFromCache = true
-		}
-	}
-	if resp == nil {
-		resp, err = c.client.HTTPClient.Do(req)
-		if err != nil {
-			common.GetLogger().Printf("Failed to parse metadata of item %s: %s", ratingKey, err.Error())
-			return nil
-		}
-	}
-	defer func(Body io.ReadCloser) {
-		_ = Body.Close()
-	}(resp.Body)
-
-	if resp.StatusCode != http.StatusOK {
-		common.GetLogger().Printf("Failed to get metadata of item %s (status: %d)", ratingKey, resp.StatusCode)
-		return nil
-	} else if !isFromCache {
-		writeToCache(cacheKey, resp, cacheTtlMetadata)
-	}
-
-	var result plex.MediaMetadata
-	err = json.NewDecoder(resp.Body).Decode(&result)
+	metadata, err := c.client.GetMetadata(ratingKey)
 	if err != nil {
 		common.GetLogger().Printf("Failed to parse metadata of item %s: %s", ratingKey, err.Error())
 		return nil
 	}
-	return &result
+	return &metadata
 }
 
 func (c *PlexClient) disableTranscoding(r *http.Request) *http.Request {
