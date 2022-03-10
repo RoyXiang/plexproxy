@@ -243,6 +243,7 @@ func (c *PlexClient) GetSharedServers() *plex.SharedServersResponse {
 	}
 	response, err := c.client.GetSharedServers(identifier)
 	if err != nil {
+		common.GetLogger().Printf("Failed to get friend list: %s", err.Error())
 		return nil
 	}
 	return &response
@@ -434,6 +435,7 @@ func (c *PlexClient) getServerIdentifier() string {
 
 		identity, err := c.client.GetServerIdentity()
 		if err != nil {
+			common.GetLogger().Printf("Failed to get server identifier: %s", err.Error())
 			return ""
 		}
 		c.serverIdentifier = &identity.MediaContainer.MachineIdentifier
@@ -452,6 +454,7 @@ func (c *PlexClient) getLibrarySection(sectionKey string) (isFound bool) {
 
 	sections, err := c.client.GetLibraries()
 	if err != nil {
+		common.GetLogger().Printf("Failed to get library sections: %s", err.Error())
 		return
 	}
 
@@ -478,6 +481,7 @@ func (c *PlexClient) getPlayerSession(playerIdentifier, ratingKey string) (sessi
 
 	sessions, err := c.client.GetSessions()
 	if err != nil {
+		common.GetLogger().Printf("Failed to get playback sessions: %s", err.Error())
 		return
 	}
 
@@ -534,6 +538,7 @@ func (c *PlexClient) getMetadata(ratingKey string) *plex.MediaMetadata {
 	if resp == nil {
 		resp, err = c.client.HTTPClient.Do(req)
 		if err != nil {
+			common.GetLogger().Printf("Failed to parse metadata of item %s: %s", ratingKey, err.Error())
 			return nil
 		}
 	}
@@ -542,13 +547,18 @@ func (c *PlexClient) getMetadata(ratingKey string) *plex.MediaMetadata {
 	}(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
+		common.GetLogger().Printf("Failed to get metadata of item %s (status: %d)", ratingKey, resp.StatusCode)
 		return nil
 	} else if !isFromCache {
 		writeToCache(cacheKey, resp, cacheTtlMetadata)
 	}
 
 	var result plex.MediaMetadata
-	_ = json.NewDecoder(resp.Body).Decode(&result)
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	if err != nil {
+		common.GetLogger().Printf("Failed to parse metadata of item %s: %s", ratingKey, err.Error())
+		return nil
+	}
 	return &result
 }
 
