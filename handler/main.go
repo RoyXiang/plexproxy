@@ -6,7 +6,6 @@ import (
 	"os"
 	"sync"
 
-	"github.com/RoyXiang/plexproxy/common"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/mux"
@@ -19,7 +18,6 @@ var (
 	emptyStruct = struct{}{}
 
 	mu sync.RWMutex
-	ml common.MultipleLock
 )
 
 func init() {
@@ -29,6 +27,7 @@ func init() {
 		PlaxtUrl:         os.Getenv("PLAXT_URL"),
 		RedirectWebApp:   os.Getenv("REDIRECT_WEB_APP"),
 		DisableTranscode: os.Getenv("DISABLE_TRANSCODE"),
+		NoRequestLogs:    os.Getenv("NO_REQUEST_LOGS"),
 	})
 	if plexClient == nil {
 		log.Fatalln("Please configure PLEX_BASEURL as a valid URL at first")
@@ -41,16 +40,15 @@ func init() {
 			redisClient = redis.NewClient(options)
 		}
 	}
-
-	ml = common.NewMultipleLock()
 }
 
 func NewRouter() http.Handler {
 	r := mux.NewRouter()
 	r.Use(normalizeMiddleware)
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
-	r.Use(trafficMiddleware)
+	if !plexClient.NoRequestLogs {
+		r.Use(middleware.Logger)
+	}
+	r.Use(wrapMiddleware, middleware.Recoverer, trafficMiddleware)
 
 	if redisClient != nil {
 		// bypass cache

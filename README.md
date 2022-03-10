@@ -40,4 +40,5 @@ env CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" github.com/RoyXiang/plex
      * Or, you can set it to [the official one](https://plaxt.astandke.com/)
    - `REDIRECT_WEB_APP` (Optional, default: `true`)
    - `DISABLE_TRANSCODE` (Optional, default: `true`)
+   - `NO_REQUEST_LOGS` (Optional, default: `false`)
 2. Run the program

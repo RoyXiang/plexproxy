@@ -12,12 +12,11 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/go-chi/chi/v5/middleware"
 )
 
 var (
 	cacheInfoCtxKey = &ctxKeyType{"cacheInfo"}
+	userCtxKey      = &ctxKeyType{"user"}
 )
 
 func normalizeMiddleware(next http.Handler) http.Handler {
@@ -74,6 +73,17 @@ func normalizeMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+func wrapMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if token := r.Header.Get(headerToken); token != "" {
+			if user := plexClient.GetUser(token); user != nil {
+				r = r.WithContext(context.WithValue(r.Context(), userCtxKey, user))
+			}
+		}
+		next.ServeHTTP(wrapResponseWriter(w, r.ProtoMajor), r)
+	})
+}
+
 func trafficMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		params := r.URL.Query()
@@ -84,11 +94,11 @@ func trafficMiddleware(next http.Handler) http.Handler {
 			params.Set(headerRange, rg)
 		}
 		lockKey := fmt.Sprintf("%s?%s", r.URL.EscapedPath(), params.Encode())
-		if !ml.TryLock(lockKey, time.Second) {
+		if !plexClient.MulLock.TryLock(lockKey, time.Second) {
 			w.WriteHeader(http.StatusGatewayTimeout)
 			return
 		}
-		defer ml.Unlock(lockKey)
+		defer plexClient.MulLock.Unlock(lockKey)
 		next.ServeHTTP(w, r)
 	})
 }
@@ -148,7 +158,7 @@ func cacheMiddleware(next http.Handler) http.Handler {
 				resp, _ = http.ReadResponse(reader, r)
 			}
 			if resp == nil {
-				nw := middleware.NewWrapResponseWriter(httptest.NewRecorder(), r.ProtoMajor)
+				nw := wrapResponseWriter(httptest.NewRecorder(), r.ProtoMajor)
 				next.ServeHTTP(nw, r)
 				resp = nw.Unwrap().(*httptest.ResponseRecorder).Result()
 				defer func() {
@@ -181,16 +191,12 @@ func cacheMiddleware(next http.Handler) http.Handler {
 		case cachePrefixStatic:
 			break
 		case cachePrefixDynamic, cachePrefixMetadata:
-			token := r.Header.Get(headerToken)
-			if token == "" {
-				return
-			}
-			user := plexClient.GetUser(token)
+			user := r.Context().Value(userCtxKey)
 			if user != nil {
-				params.Set(headerUserId, strconv.Itoa(user.Id))
+				params.Set(headerUserId, strconv.Itoa(user.(*plexUser).Id))
 				params.Set(headerAccept, getAcceptContentType(r))
 			} else {
-				params.Set(headerToken, token)
+				return
 			}
 		default:
 			// invalid prefix

@@ -13,6 +13,7 @@ type refCounter struct {
 
 type MultipleLock interface {
 	TryLock(interface{}, time.Duration) bool
+	Lock(interface{})
 	Unlock(interface{})
 }
 
@@ -29,6 +30,12 @@ func (l *lock) TryLock(key interface{}, timeout time.Duration) bool {
 		l.putBackInPool(key, m)
 	}
 	return isLocked
+}
+
+func (l *lock) Lock(key interface{}) {
+	m := l.getLocker(key)
+	atomic.AddInt64(&m.counter, 1)
+	m.lock.lock()
 }
 
 func (l *lock) Unlock(key interface{}) {
