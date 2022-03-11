@@ -199,11 +199,7 @@ func (c *PlexClient) fetchUsers(token string) {
 
 	response := c.GetSharedServers()
 	if response != nil {
-		isFriend := false
 		for _, friend := range response.Friends {
-			if friend.AccessToken == token {
-				isFriend = true
-			}
 			user = plexUser{
 				Id:       friend.UserId,
 				Username: friend.Username,
@@ -212,9 +208,6 @@ func (c *PlexClient) fetchUsers(token string) {
 				redisClient.Set(ctx, cacheKey, &user, 0).Val()
 			}
 			c.users[token] = &user
-		}
-		if isFriend {
-			return
 		}
 	}
 }
@@ -383,7 +376,7 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request, user *plexUser) {
 		},
 	}
 	b, _ := json.Marshal(webhook)
-	resp, err := c.client.DownloadClient.Post(c.plaxtUrl, "application/json", bytes.NewBuffer(b))
+	resp, err := c.client.HTTPClient.Post(c.plaxtUrl, "application/json", bytes.NewBuffer(b))
 	if err != nil {
 		common.GetLogger().Printf("Failed on sending webhook to Plaxt: %s", err.Error())
 		return
