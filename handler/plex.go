@@ -12,7 +12,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/RoyXiang/plexproxy/common"
 	"github.com/jrudio/go-plex-client"
@@ -38,11 +37,9 @@ type PlexClient struct {
 	NoRequestLogs    bool
 
 	serverIdentifier *string
-	sections         map[string]plex.Directory
-	sessions         map[string]sessionData
-	friends          map[string]plexUser
-
-	mu sync.RWMutex
+	sections         map[string]*plex.Directory
+	sessions         map[string]*sessionData
+	users            map[string]*plexUser
 
 	MulLock common.MultipleLock
 }
@@ -94,9 +91,9 @@ func NewPlexClient(config PlexConfig) *PlexClient {
 		redirectWebApp:   redirectWebApp,
 		disableTranscode: disableTranscode,
 		NoRequestLogs:    noRequestLogs,
-		sections:         make(map[string]plex.Directory, 0),
-		sessions:         make(map[string]sessionData),
-		friends:          make(map[string]plexUser),
+		sections:         make(map[string]*plex.Directory, 0),
+		sessions:         make(map[string]*sessionData),
+		users:            make(map[string]*plexUser),
 		MulLock:          common.NewMultipleLock(),
 	}
 }
@@ -109,23 +106,17 @@ func (u *plexUser) UnmarshalBinary(data []byte) error {
 	return json.Unmarshal(data, u)
 }
 
-func (a sessionData) Check(b sessionData) (bool, bool) {
+func (a sessionData) Check(b sessionData) bool {
 	if a.status != b.status {
-		return true, true
+		return true
 	}
 	if a.progress != b.progress {
 		if a.status == sessionPlaying {
-			return true, false
+			return false
 		}
-		return true, true
+		return true
 	}
-	if a.lastEvent != b.lastEvent {
-		return true, false
-	}
-	if len(a.guids) != len(b.guids) {
-		return true, false
-	}
-	return false, false
+	return false
 }
 
 func (c *PlexClient) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -151,65 +142,81 @@ func (c *PlexClient) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *PlexClient) IsTokenSet() bool {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+	c.MulLock.RLock(lockKeyToken)
+	defer c.MulLock.RUnlock(lockKeyToken)
 
 	return c.client.Token != ""
 }
 
-func (c *PlexClient) GetUser(token string) *plexUser {
-	if realUser, ok := c.friends[token]; ok {
-		return &realUser
+func (c *PlexClient) GetUser(token string) (user *plexUser) {
+	if user = c.searchUser(token); user != nil {
+		return
 	}
+	c.fetchUsers(token)
+	user = c.searchUser(token)
+	return
+}
 
-	var err error
+func (c *PlexClient) searchUser(token string) *plexUser {
+	c.MulLock.RLock(lockKeyUsers)
+	defer c.MulLock.RUnlock(lockKeyUsers)
+
+	if user, ok := c.users[token]; ok {
+		return user
+	}
+	return nil
+}
+
+func (c *PlexClient) fetchUsers(token string) {
+	c.MulLock.Lock(lockKeyUsers)
+	defer c.MulLock.Unlock(lockKeyUsers)
+
+	var user plexUser
 	ctx := context.Background()
 	cacheKey := fmt.Sprintf("%s:token:%s", cachePrefixPlex, token)
-
 	isCacheEnabled := redisClient != nil
+
 	if isCacheEnabled {
-		var result plexUser
-		err = redisClient.Get(ctx, cacheKey).Scan(&result)
+		err := redisClient.Get(ctx, cacheKey).Scan(&user)
 		if err == nil {
-			c.friends[token] = result
-			return &result
+			c.users[token] = &user
+			return
 		}
 	}
 
-	c.MulLock.Lock(lockKeyFriends)
-	defer c.MulLock.Unlock(lockKeyFriends)
+	userInfo := c.GetAccountInfo(token)
+	if userInfo.ID > 0 {
+		user = plexUser{
+			Id:       userInfo.ID,
+			Username: userInfo.Username,
+		}
+		if isCacheEnabled {
+			redisClient.Set(ctx, cacheKey, &user, 0).Val()
+		}
+		c.users[token] = &user
+		return
+	}
 
-	var user *plexUser
 	response := c.GetSharedServers()
-	if response == nil {
+	if response != nil {
+		isFriend := false
 		for _, friend := range response.Friends {
-			realUser := plexUser{
+			if friend.AccessToken == token {
+				isFriend = true
+			}
+			user = plexUser{
 				Id:       friend.UserId,
 				Username: friend.Username,
 			}
-			if friend.AccessToken == token {
-				user = &realUser
-			}
-			c.friends[friend.AccessToken] = realUser
 			if isCacheEnabled {
-				key := fmt.Sprintf("%s:token:%s", cachePrefixPlex, friend.AccessToken)
-				redisClient.Set(ctx, key, &realUser, 0)
+				redisClient.Set(ctx, cacheKey, &user, 0).Val()
 			}
+			c.users[token] = &user
 		}
-		if user != nil {
-			return user
-		}
-	}
-
-	info := c.GetAccountInfo(token)
-	if info.ID > 0 {
-		realUser := c.friends[token]
-		user = &realUser
-		if isCacheEnabled {
-			redisClient.Set(ctx, cacheKey, user, 0)
+		if isFriend {
+			return
 		}
 	}
-	return user
 }
 
 func (c *PlexClient) GetSharedServers() *plex.SharedServersResponse {
@@ -217,8 +224,8 @@ func (c *PlexClient) GetSharedServers() *plex.SharedServersResponse {
 		return nil
 	}
 
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+	c.MulLock.RLock(lockKeyToken)
+	defer c.MulLock.RUnlock(lockKeyToken)
 
 	identifier := c.getServerIdentifier()
 	if identifier == "" {
@@ -233,22 +240,15 @@ func (c *PlexClient) GetSharedServers() *plex.SharedServersResponse {
 }
 
 func (c *PlexClient) GetAccountInfo(token string) (user plex.UserPlexTV) {
-	c.mu.Lock()
-	originalToken := token
+	c.MulLock.Lock(lockKeyToken)
+	originalToken := c.client.Token
 	defer func() {
 		c.client.Token = originalToken
-		c.mu.Unlock()
+		c.MulLock.Unlock(lockKeyToken)
 	}()
 
-	var err error
 	c.client.Token = token
-	user, err = c.client.MyAccount()
-	if err == nil {
-		c.friends[token] = plexUser{
-			Id:       user.ID,
-			Username: user.Username,
-		}
-	}
+	user, _ = c.client.MyAccount()
 	return
 }
 
@@ -271,18 +271,15 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request, user *plexUser) {
 		return
 	}
 
-	sessionKey := c.getPlayerSession(clientUuid, ratingKey)
-	if sessionKey == "" {
+	session := c.getPlayerSession(clientUuid, ratingKey)
+	if session == nil || session.status == sessionWatched {
 		return
 	}
-	lockKey := fmt.Sprintf("plex:session:%s", sessionKey)
+	lockKey := fmt.Sprintf("plex:session:%d:%s:%s", user.Id, clientUuid, ratingKey)
 	c.MulLock.Lock(lockKey)
 	defer c.MulLock.Unlock(lockKey)
 
-	session := c.sessions[sessionKey]
-	if session.status == sessionWatched {
-		return
-	}
+	originalSession := *session
 	progress := int(math.Round(float64(viewOffset) / float64(session.metadata.Duration) * 100.0))
 	if progress == 0 {
 		if session.progress >= watchedThreshold {
@@ -344,12 +341,7 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request, user *plexUser) {
 	}
 	session.lastEvent = event
 	session.progress = progress
-	shouldUpdate, shouldScrobble := session.Check(c.sessions[sessionKey])
-	if shouldUpdate {
-		defer func() {
-			c.sessions[sessionKey] = session
-		}()
-	}
+	shouldScrobble := session.Check(originalSession)
 	if !shouldScrobble {
 		return
 	}
@@ -358,14 +350,9 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request, user *plexUser) {
 	if serverIdentifier == "" {
 		return
 	}
-	var section plex.Directory
+	var section *plex.Directory
 	sectionId := session.metadata.LibrarySectionID.String()
-	if c.getLibrarySection(sectionId) {
-		section = c.sections[sectionId]
-		if section.Type != "show" && section.Type != "movie" {
-			return
-		}
-	} else {
+	if section = c.getLibrarySection(sectionId); session == nil || (section.Type != "show" && section.Type != "movie") {
 		return
 	}
 
@@ -411,9 +398,6 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request, user *plexUser) {
 
 func (c *PlexClient) getServerIdentifier() string {
 	if c.serverIdentifier == nil {
-		c.mu.RLock()
-		defer c.mu.RUnlock()
-
 		identity, err := c.client.GetServerIdentity()
 		if err != nil {
 			common.GetLogger().Printf("Failed to get server identifier: %s", err.Error())
@@ -424,68 +408,89 @@ func (c *PlexClient) getServerIdentifier() string {
 	return *c.serverIdentifier
 }
 
-func (c *PlexClient) getLibrarySection(sectionKey string) (isFound bool) {
-	if _, ok := c.sections[sectionKey]; ok {
-		isFound = true
+func (c *PlexClient) getLibrarySection(sectionKey string) (section *plex.Directory) {
+	if section = c.searchLibrarySection(sectionKey); section != nil {
 		return
 	}
+	c.fetchLibrarySections()
+	section = c.searchLibrarySection(sectionKey)
+	return
+}
 
+func (c *PlexClient) searchLibrarySection(sectionKey string) *plex.Directory {
+	c.MulLock.RLock(lockKeySections)
+	defer c.MulLock.RUnlock(lockKeySections)
+
+	if section, ok := c.sections[sectionKey]; ok {
+		return section
+	}
+	return nil
+}
+
+func (c *PlexClient) fetchLibrarySections() {
 	c.MulLock.Lock(lockKeySections)
-	c.mu.RLock()
+	c.MulLock.RLock(lockKeyToken)
 	defer func() {
-		c.mu.RUnlock()
+		c.MulLock.RUnlock(lockKeyToken)
 		c.MulLock.Unlock(lockKeySections)
 	}()
 
 	sections, err := c.client.GetLibraries()
 	if err != nil {
-		common.GetLogger().Printf("Failed to get library sections: %s", err.Error())
+		common.GetLogger().Printf("Failed to fetch library sections: %s", err.Error())
 		return
 	}
 
-	c.sections = make(map[string]plex.Directory, len(sections.MediaContainer.Directory))
+	c.sections = make(map[string]*plex.Directory, len(sections.MediaContainer.Directory))
 	for _, section := range sections.MediaContainer.Directory {
-		c.sections[section.Key] = section
-		if sectionKey == section.Key {
-			isFound = true
-		}
+		c.sections[section.Key] = &section
 	}
+}
+
+func (c *PlexClient) getPlayerSession(playerIdentifier, ratingKey string) (session *sessionData) {
+	if session = c.searchPlayerSession(playerIdentifier, ratingKey); session != nil {
+		return session
+	}
+	c.fetchPlayerSessions()
+	session = c.searchPlayerSession(playerIdentifier, ratingKey)
 	return
 }
 
-func (c *PlexClient) getPlayerSession(playerIdentifier, ratingKey string) (sessionKey string) {
-	for key, data := range c.sessions {
-		if data.metadata.Player.MachineIdentifier == playerIdentifier && data.metadata.RatingKey == ratingKey {
-			sessionKey = key
-			return
-		}
-	}
+func (c *PlexClient) searchPlayerSession(playerIdentifier, ratingKey string) *sessionData {
+	c.MulLock.RLock(lockKeySessions)
+	c.MulLock.RUnlock(lockKeySessions)
 
+	key := playerIdentifier + "-" + ratingKey
+	if session, ok := c.sessions[key]; ok {
+		return session
+	}
+	return nil
+}
+
+func (c *PlexClient) fetchPlayerSessions() {
 	c.MulLock.Lock(lockKeySessions)
-	c.mu.RLock()
+	c.MulLock.RLock(lockKeyToken)
 	defer func() {
-		c.mu.RUnlock()
+		c.MulLock.RUnlock(lockKeyToken)
 		c.MulLock.Unlock(lockKeySessions)
 	}()
 
 	sessions, err := c.client.GetSessions()
 	if err != nil {
-		common.GetLogger().Printf("Failed to get playback sessions: %s", err.Error())
+		common.GetLogger().Printf("Failed to fetch playback sessions: %s", err.Error())
 		return
 	}
 
 	keys := make(map[string]struct{}, len(sessions.MediaContainer.Metadata))
 	for _, session := range sessions.MediaContainer.Metadata {
-		keys[session.SessionKey] = emptyStruct
-		if _, ok := c.sessions[session.SessionKey]; !ok {
-			c.sessions[session.SessionKey] = sessionData{
+		key := session.Player.MachineIdentifier + "-" + session.RatingKey
+		keys[key] = emptyStruct
+		if _, ok := c.sessions[key]; !ok {
+			c.sessions[key] = &sessionData{
 				metadata: session,
 				guids:    nil,
 				status:   sessionUnplayed,
 			}
-		}
-		if session.Player.MachineIdentifier == playerIdentifier && session.RatingKey == ratingKey {
-			sessionKey = session.SessionKey
 		}
 	}
 	for key := range c.sessions {
@@ -493,12 +498,11 @@ func (c *PlexClient) getPlayerSession(playerIdentifier, ratingKey string) (sessi
 			delete(c.sessions, key)
 		}
 	}
-	return
 }
 
 func (c *PlexClient) getMetadata(ratingKey string) *plex.MediaMetadata {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+	c.MulLock.RLock(lockKeyToken)
+	defer c.MulLock.RUnlock(lockKeyToken)
 
 	metadata, err := c.client.GetMetadata(ratingKey)
 	if err != nil {

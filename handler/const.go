@@ -32,9 +32,10 @@ const (
 	contentTypeAny = "*/*"
 	contentTypeXml = "xml"
 
-	lockKeyFriends  = "plex:friends"
 	lockKeySections = "plex:library:sections"
 	lockKeySessions = "plex:playback:sessions"
+	lockKeyToken    = "plex:token"
+	lockKeyUsers    = "plex:users"
 
 	watchedThreshold = 90
 

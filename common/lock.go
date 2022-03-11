@@ -15,6 +15,8 @@ type MultipleLock interface {
 	TryLock(interface{}, time.Duration) bool
 	Lock(interface{})
 	Unlock(interface{})
+	RLock(interface{})
+	RUnlock(interface{})
 }
 
 type lock struct {
@@ -41,6 +43,18 @@ func (l *lock) Lock(key interface{}) {
 func (l *lock) Unlock(key interface{}) {
 	m := l.getLocker(key)
 	m.lock.unlock()
+	l.putBackInPool(key, m)
+}
+
+func (l *lock) RLock(key interface{}) {
+	m := l.getLocker(key)
+	atomic.AddInt64(&m.counter, 1)
+	m.lock.rLock()
+}
+
+func (l *lock) RUnlock(key interface{}) {
+	m := l.getLocker(key)
+	m.lock.rUnlock()
 	l.putBackInPool(key, m)
 }
 
