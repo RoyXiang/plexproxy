@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -158,21 +157,6 @@ func (c *PlexClient) IsTokenSet() bool {
 	return c.client.Token != ""
 }
 
-func (c *PlexClient) TestReachability() bool {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	result, _ := c.client.Test()
-	return result
-}
-
-func (c *PlexClient) SubscribeToNotifications(events *plex.NotificationEvents, interrupt <-chan os.Signal, fn func(error)) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	c.client.SubscribeToNotifications(events, interrupt, fn)
-}
-
 func (c *PlexClient) GetUser(token string) *plexUser {
 	if realUser, ok := c.friends[token]; ok {
 		return &realUser
@@ -195,27 +179,26 @@ func (c *PlexClient) GetUser(token string) *plexUser {
 	c.MulLock.Lock(lockKeyFriends)
 	defer c.MulLock.Unlock(lockKeyFriends)
 
+	var user *plexUser
 	response := c.GetSharedServers()
 	if response == nil {
-		return nil
-	}
-	var user *plexUser
-	for _, friend := range response.Friends {
-		realUser := plexUser{
-			Id:       friend.UserId,
-			Username: friend.Username,
+		for _, friend := range response.Friends {
+			realUser := plexUser{
+				Id:       friend.UserId,
+				Username: friend.Username,
+			}
+			if friend.AccessToken == token {
+				user = &realUser
+			}
+			c.friends[friend.AccessToken] = realUser
+			if isCacheEnabled {
+				key := fmt.Sprintf("%s:token:%s", cachePrefixPlex, friend.AccessToken)
+				redisClient.Set(ctx, key, &realUser, 0)
+			}
 		}
-		if friend.AccessToken == token {
-			user = &realUser
+		if user != nil {
+			return user
 		}
-		c.friends[friend.AccessToken] = realUser
-		if isCacheEnabled {
-			key := fmt.Sprintf("%s:token:%s", cachePrefixPlex, friend.AccessToken)
-			redisClient.Set(ctx, key, &realUser, 0)
-		}
-	}
-	if user != nil {
-		return user
 	}
 
 	info := c.GetAccountInfo(token)
@@ -230,6 +213,10 @@ func (c *PlexClient) GetUser(token string) *plexUser {
 }
 
 func (c *PlexClient) GetSharedServers() *plex.SharedServersResponse {
+	if !c.IsTokenSet() {
+		return nil
+	}
+
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 

@@ -13,10 +13,13 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/RoyXiang/plexproxy/common"
 )
 
 var (
 	cacheInfoCtxKey = &ctxKeyType{"cacheInfo"}
+	tokenCtxKey     = &ctxKeyType{"token"}
 	userCtxKey      = &ctxKeyType{"user"}
 )
 
@@ -77,9 +80,13 @@ func normalizeMiddleware(next http.Handler) http.Handler {
 func wrapMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if token := r.Header.Get(headerToken); token != "" {
+			ctx := context.WithValue(r.Context(), tokenCtxKey, token)
 			if user := plexClient.GetUser(token); user != nil {
-				r = r.WithContext(context.WithValue(r.Context(), userCtxKey, user))
+				ctx = context.WithValue(ctx, userCtxKey, user)
+			} else {
+				common.GetLogger().Printf("Cannot get user info: %s", token)
 			}
+			r = r.WithContext(ctx)
 		}
 		next.ServeHTTP(wrapResponseWriter(w, r.ProtoMajor), r)
 	})
@@ -194,10 +201,11 @@ func cacheMiddleware(next http.Handler) http.Handler {
 		case cachePrefixStatic:
 			break
 		case cachePrefixDynamic:
-			user := r.Context().Value(userCtxKey)
-			if user != nil {
+			if user := r.Context().Value(userCtxKey); user != nil {
 				params.Set(headerUserId, strconv.Itoa(user.(*plexUser).Id))
 				params.Set(headerAccept, getAcceptContentType(r))
+			} else if token := r.Context().Value(tokenCtxKey); token != nil {
+				params.Set(headerToken, token.(string))
 			} else {
 				return
 			}
