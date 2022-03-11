@@ -342,9 +342,9 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request, user *plexUser) {
 	if serverIdentifier == "" {
 		return
 	}
-	var section *plex.Directory
 	sectionId := session.metadata.LibrarySectionID.String()
-	if section = c.getLibrarySection(sectionId); session == nil || (section.Type != "show" && section.Type != "movie") {
+	section := c.getLibrarySection(sectionId)
+	if section == nil || (section.Type != "show" && section.Type != "movie") {
 		return
 	}
 
@@ -433,7 +433,8 @@ func (c *PlexClient) fetchLibrarySections() {
 	}
 
 	c.sections = make(map[string]*plex.Directory, len(sections.MediaContainer.Directory))
-	for _, section := range sections.MediaContainer.Directory {
+	for _, s := range sections.MediaContainer.Directory {
+		section := s
 		c.sections[section.Key] = &section
 	}
 }
