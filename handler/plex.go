@@ -451,11 +451,12 @@ func (c *PlexClient) getPlayerSession(playerIdentifier, ratingKey string) (sessi
 
 func (c *PlexClient) searchPlayerSession(playerIdentifier, ratingKey string) *sessionData {
 	c.MulLock.RLock(lockKeySessions)
-	c.MulLock.RUnlock(lockKeySessions)
+	defer c.MulLock.RUnlock(lockKeySessions)
 
-	key := playerIdentifier + "-" + ratingKey
-	if session, ok := c.sessions[key]; ok {
-		return session
+	for _, session := range c.sessions {
+		if session.metadata.Player.MachineIdentifier == playerIdentifier && session.metadata.RatingKey == ratingKey {
+			return session
+		}
 	}
 	return nil
 }
@@ -476,10 +477,9 @@ func (c *PlexClient) fetchPlayerSessions() {
 
 	keys := make(map[string]struct{}, len(sessions.MediaContainer.Metadata))
 	for _, session := range sessions.MediaContainer.Metadata {
-		key := session.Player.MachineIdentifier + "-" + session.RatingKey
-		keys[key] = emptyStruct
-		if _, ok := c.sessions[key]; !ok {
-			c.sessions[key] = &sessionData{
+		keys[session.SessionKey] = emptyStruct
+		if _, ok := c.sessions[session.SessionKey]; !ok {
+			c.sessions[session.SessionKey] = &sessionData{
 				metadata: session,
 				guids:    nil,
 				status:   sessionUnplayed,
@@ -488,6 +488,7 @@ func (c *PlexClient) fetchPlayerSessions() {
 	}
 	for key := range c.sessions {
 		if _, ok := keys[key]; !ok {
+			c.sessions[key] = nil
 			delete(c.sessions, key)
 		}
 	}
