@@ -433,7 +433,8 @@ func (c *PlexClient) fetchLibrarySections() {
 	}
 
 	c.sections = make(map[string]*plex.Directory, len(sections.MediaContainer.Directory))
-	for _, section := range sections.MediaContainer.Directory {
+	for _, s := range sections.MediaContainer.Directory {
+		section := s
 		c.sections[section.Key] = &section
 	}
 }
