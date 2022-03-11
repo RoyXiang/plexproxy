@@ -148,13 +148,12 @@ func (c *PlexClient) IsTokenSet() bool {
 	return c.client.Token != ""
 }
 
-func (c *PlexClient) GetUser(token string) (user *plexUser) {
-	if user = c.searchUser(token); user != nil {
-		return
+func (c *PlexClient) GetUser(token string) *plexUser {
+	if user := c.searchUser(token); user != nil {
+		return user
 	}
 	c.fetchUsers(token)
-	user = c.searchUser(token)
-	return
+	return c.searchUser(token)
 }
 
 func (c *PlexClient) searchUser(token string) *plexUser {
@@ -264,11 +263,11 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request, user *plexUser) {
 		return
 	}
 
-	session := c.getPlayerSession(clientUuid, ratingKey)
+	sessionKey, session := c.getPlayerSession(clientUuid, ratingKey)
 	if session == nil || session.status == sessionWatched {
 		return
 	}
-	lockKey := fmt.Sprintf("plex:session:%d:%s:%s", user.Id, clientUuid, ratingKey)
+	lockKey := fmt.Sprintf("plex:session:%s", sessionKey)
 	c.MulLock.Lock(lockKey)
 	defer c.MulLock.Unlock(lockKey)
 
@@ -376,7 +375,7 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request, user *plexUser) {
 		},
 	}
 	b, _ := json.Marshal(webhook)
-	resp, err := c.client.HTTPClient.Post(c.plaxtUrl, "application/json", bytes.NewBuffer(b))
+	resp, err := c.client.DownloadClient.Post(c.plaxtUrl, "application/json", bytes.NewBuffer(b))
 	if err != nil {
 		common.GetLogger().Printf("Failed on sending webhook to Plaxt: %s", err.Error())
 		return
@@ -401,13 +400,12 @@ func (c *PlexClient) getServerIdentifier() string {
 	return *c.serverIdentifier
 }
 
-func (c *PlexClient) getLibrarySection(sectionKey string) (section *plex.Directory) {
-	if section = c.searchLibrarySection(sectionKey); section != nil {
-		return
+func (c *PlexClient) getLibrarySection(sectionKey string) *plex.Directory {
+	if section := c.searchLibrarySection(sectionKey); section != nil {
+		return section
 	}
 	c.fetchLibrarySections()
-	section = c.searchLibrarySection(sectionKey)
-	return
+	return c.searchLibrarySection(sectionKey)
 }
 
 func (c *PlexClient) searchLibrarySection(sectionKey string) *plex.Directory {
@@ -440,24 +438,24 @@ func (c *PlexClient) fetchLibrarySections() {
 	}
 }
 
-func (c *PlexClient) getPlayerSession(playerIdentifier, ratingKey string) (session *sessionData) {
-	if session = c.searchPlayerSession(playerIdentifier, ratingKey); session != nil {
-		return session
+func (c *PlexClient) getPlayerSession(playerIdentifier, ratingKey string) (string, *sessionData) {
+	if key, session := c.searchPlayerSession(playerIdentifier, ratingKey); session != nil {
+		return key, session
 	}
 	c.fetchPlayerSessions()
-	session = c.searchPlayerSession(playerIdentifier, ratingKey)
-	return
+	return c.searchPlayerSession(playerIdentifier, ratingKey)
 }
 
-func (c *PlexClient) searchPlayerSession(playerIdentifier, ratingKey string) *sessionData {
+func (c *PlexClient) searchPlayerSession(playerIdentifier, ratingKey string) (string, *sessionData) {
 	c.MulLock.RLock(lockKeySessions)
-	c.MulLock.RUnlock(lockKeySessions)
+	defer c.MulLock.RUnlock(lockKeySessions)
 
-	key := playerIdentifier + "-" + ratingKey
-	if session, ok := c.sessions[key]; ok {
-		return session
+	for key, session := range c.sessions {
+		if session.metadata.Player.MachineIdentifier == playerIdentifier && session.metadata.RatingKey == ratingKey {
+			return key, session
+		}
 	}
-	return nil
+	return "", nil
 }
 
 func (c *PlexClient) fetchPlayerSessions() {
@@ -476,10 +474,9 @@ func (c *PlexClient) fetchPlayerSessions() {
 
 	keys := make(map[string]struct{}, len(sessions.MediaContainer.Metadata))
 	for _, session := range sessions.MediaContainer.Metadata {
-		key := session.Player.MachineIdentifier + "-" + session.RatingKey
-		keys[key] = emptyStruct
-		if _, ok := c.sessions[key]; !ok {
-			c.sessions[key] = &sessionData{
+		keys[session.SessionKey] = emptyStruct
+		if _, ok := c.sessions[session.SessionKey]; !ok {
+			c.sessions[session.SessionKey] = &sessionData{
 				metadata: session,
 				guids:    nil,
 				status:   sessionUnplayed,
@@ -488,6 +485,7 @@ func (c *PlexClient) fetchPlayerSessions() {
 	}
 	for key := range c.sessions {
 		if _, ok := keys[key]; !ok {
+			c.sessions[key] = nil
 			delete(c.sessions, key)
 		}
 	}
