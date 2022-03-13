@@ -12,6 +12,10 @@ import (
 	"github.com/RoyXiang/plexproxy/handler"
 )
 
+var (
+	Version string
+)
+
 func main() {
 	srv := &http.Server{
 		Addr:    "0.0.0.0:5000",
@@ -23,7 +27,7 @@ func main() {
 			common.GetLogger().Println(err)
 		}
 	}()
-	common.GetLogger().Println("Server started on :5000")
+	common.GetLogger().Printf("plexproxy started on :5000 (version=%q)", Version)
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)

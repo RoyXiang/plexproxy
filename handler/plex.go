@@ -170,12 +170,12 @@ func (c *PlexClient) fetchUsers(token string) {
 	c.MulLock.Lock(lockKeyUsers)
 	defer c.MulLock.Unlock(lockKeyUsers)
 
-	var user plexUser
 	ctx := context.Background()
 	cacheKey := fmt.Sprintf("%s:token:%s", cachePrefixPlex, token)
 	isCacheEnabled := redisClient != nil
 
 	if isCacheEnabled {
+		var user plexUser
 		err := redisClient.Get(ctx, cacheKey).Scan(&user)
 		if err == nil {
 			c.users[token] = &user
@@ -185,7 +185,7 @@ func (c *PlexClient) fetchUsers(token string) {
 
 	userInfo := c.GetAccountInfo(token)
 	if userInfo.ID > 0 {
-		user = plexUser{
+		user := plexUser{
 			Id:       userInfo.ID,
 			Username: userInfo.Username,
 		}
@@ -199,7 +199,7 @@ func (c *PlexClient) fetchUsers(token string) {
 	response := c.GetSharedServers()
 	if response != nil {
 		for _, friend := range response.Friends {
-			user = plexUser{
+			user := plexUser{
 				Id:       friend.UserId,
 				Username: friend.Username,
 			}
@@ -257,31 +257,30 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request, user *plexUser) {
 		return
 	}
 
-	var viewOffset int
-	var err error
-	if viewOffset, err = strconv.Atoi(playbackTime); err != nil {
-		return
-	}
-
 	sessionKey, session := c.getPlayerSession(clientUuid, ratingKey)
-	if session == nil || session.status == sessionWatched {
+	if session == nil {
 		return
 	}
 	lockKey := fmt.Sprintf("plex:session:%s", sessionKey)
 	c.MulLock.Lock(lockKey)
 	defer c.MulLock.Unlock(lockKey)
 
-	originalSession := *session
-	progress := int(math.Round(float64(viewOffset) / float64(session.metadata.Duration) * 100.0))
-	if progress == 0 {
+	if session.status == sessionWatched {
+		return
+	}
+	viewOffset, err := strconv.Atoi(playbackTime)
+	if err != nil {
+		return
+	} else if viewOffset == 0 {
 		if session.progress >= watchedThreshold {
 			// time would become 0 once a playback session was finished
-			progress = 100
 			viewOffset = session.metadata.Duration
 		} else if session.status != sessionUnplayed {
 			return
 		}
 	}
+	originalSession := *session
+	progress := int(math.Round(float64(viewOffset) / float64(session.metadata.Duration) * 100.0))
 
 	externalGuids := make([]plexhooks.ExternalGuid, 0)
 	if session.guids == nil {
@@ -375,7 +374,7 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request, user *plexUser) {
 		},
 	}
 	b, _ := json.Marshal(webhook)
-	resp, err := c.client.DownloadClient.Post(c.plaxtUrl, "application/json", bytes.NewBuffer(b))
+	resp, err := c.client.HTTPClient.Post(c.plaxtUrl, "application/json", bytes.NewBuffer(b))
 	if err != nil {
 		common.GetLogger().Printf("Failed on sending webhook to Plaxt: %s", err.Error())
 		return
