@@ -257,31 +257,30 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request, user *plexUser) {
 		return
 	}
 
-	var viewOffset int
-	var err error
-	if viewOffset, err = strconv.Atoi(playbackTime); err != nil {
-		return
-	}
-
 	sessionKey, session := c.getPlayerSession(clientUuid, ratingKey)
-	if session == nil || session.status == sessionWatched {
+	if session == nil {
 		return
 	}
 	lockKey := fmt.Sprintf("plex:session:%s", sessionKey)
 	c.MulLock.Lock(lockKey)
 	defer c.MulLock.Unlock(lockKey)
 
-	originalSession := *session
-	progress := int(math.Round(float64(viewOffset) / float64(session.metadata.Duration) * 100.0))
-	if progress == 0 {
+	if session.status == sessionWatched {
+		return
+	}
+	viewOffset, err := strconv.Atoi(playbackTime)
+	if err != nil {
+		return
+	} else if viewOffset == 0 {
 		if session.progress >= watchedThreshold {
 			// time would become 0 once a playback session was finished
-			progress = 100
 			viewOffset = session.metadata.Duration
 		} else if session.status != sessionUnplayed {
 			return
 		}
 	}
+	originalSession := *session
+	progress := int(math.Round(float64(viewOffset) / float64(session.metadata.Duration) * 100.0))
 
 	externalGuids := make([]plexhooks.ExternalGuid, 0)
 	if session.guids == nil {
