@@ -170,12 +170,12 @@ func (c *PlexClient) fetchUsers(token string) {
 	c.MulLock.Lock(lockKeyUsers)
 	defer c.MulLock.Unlock(lockKeyUsers)
 
-	var user plexUser
 	ctx := context.Background()
 	cacheKey := fmt.Sprintf("%s:token:%s", cachePrefixPlex, token)
 	isCacheEnabled := redisClient != nil
 
 	if isCacheEnabled {
+		var user plexUser
 		err := redisClient.Get(ctx, cacheKey).Scan(&user)
 		if err == nil {
 			c.users[token] = &user
@@ -185,7 +185,7 @@ func (c *PlexClient) fetchUsers(token string) {
 
 	userInfo := c.GetAccountInfo(token)
 	if userInfo.ID > 0 {
-		user = plexUser{
+		user := plexUser{
 			Id:       userInfo.ID,
 			Username: userInfo.Username,
 		}
@@ -199,7 +199,7 @@ func (c *PlexClient) fetchUsers(token string) {
 	response := c.GetSharedServers()
 	if response != nil {
 		for _, friend := range response.Friends {
-			user = plexUser{
+			user := plexUser{
 				Id:       friend.UserId,
 				Username: friend.Username,
 			}
