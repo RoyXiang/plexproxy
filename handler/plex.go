@@ -374,7 +374,7 @@ func (c *PlexClient) syncTimelineWithPlaxt(r *http.Request, user *plexUser) {
 		},
 	}
 	b, _ := json.Marshal(webhook)
-	resp, err := c.client.DownloadClient.Post(c.plaxtUrl, "application/json", bytes.NewBuffer(b))
+	resp, err := c.client.HTTPClient.Post(c.plaxtUrl, "application/json", bytes.NewBuffer(b))
 	if err != nil {
 		common.GetLogger().Printf("Failed on sending webhook to Plaxt: %s", err.Error())
 		return
