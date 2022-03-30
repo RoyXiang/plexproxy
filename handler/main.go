@@ -42,7 +42,7 @@ func init() {
 
 func NewRouter() http.Handler {
 	r := mux.NewRouter()
-	r.Use(normalizeMiddleware, handlers.ProxyHeaders)
+	r.Use(handlers.ProxyHeaders, normalizeMiddleware)
 	if !plexClient.NoRequestLogs {
 		r.Use(middleware.Logger)
 	}
