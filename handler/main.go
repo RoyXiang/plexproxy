@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-redis/redis/v8"
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 )
 
@@ -41,7 +42,7 @@ func init() {
 
 func NewRouter() http.Handler {
 	r := mux.NewRouter()
-	r.Use(normalizeMiddleware)
+	r.Use(normalizeMiddleware, handlers.ProxyHeaders)
 	if !plexClient.NoRequestLogs {
 		r.Use(middleware.Logger)
 	}

@@ -70,20 +70,6 @@ func cloneRequest(r *http.Request, headers http.Header, query url.Values) *http.
 	return nr
 }
 
-func getIP(r *http.Request) string {
-	var addr string
-	if fwd := r.Header.Get(headerForwardedFor); fwd != "" {
-		s := strings.Index(fwd, ", ")
-		if s == -1 {
-			s = len(fwd)
-		}
-		addr = fwd[:s]
-	} else if fwd := r.Header.Get(headerRealIP); fwd != "" {
-		addr = fwd
-	}
-	return addr
-}
-
 func getAcceptContentType(r *http.Request) string {
 	accept := r.Header.Get(headerAccept)
 	if accept == "" {

@@ -204,9 +204,10 @@ func (c *PlexClient) fetchUsers(token string) {
 				Username: friend.Username,
 			}
 			if isCacheEnabled {
+				cacheKey = fmt.Sprintf("%s:token:%s", cachePrefixPlex, friend.AccessToken)
 				redisClient.Set(ctx, cacheKey, &user, 0).Val()
 			}
-			c.users[token] = &user
+			c.users[friend.AccessToken] = &user
 		}
 	}
 }
