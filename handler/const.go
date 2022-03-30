@@ -17,9 +17,7 @@ const (
 	headerAcceptLanguage = "Accept-Language"
 	headerCacheControl   = "Cache-Control"
 	headerContentType    = "Content-Type"
-	headerForwardedFor   = "X-Forwarded-For"
 	headerRange          = "Range"
-	headerRealIP         = "X-Real-IP"
 	headerVary           = "Vary"
 
 	cachePrefixDynamic = "dynamic"

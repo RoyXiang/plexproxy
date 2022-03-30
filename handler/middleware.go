@@ -69,11 +69,7 @@ func normalizeMiddleware(next http.Handler) http.Handler {
 			}
 		}
 
-		nr := cloneRequest(r, headers, params)
-		if fwd := getIP(r); fwd != "" {
-			nr.RemoteAddr = fwd
-		}
-		next.ServeHTTP(w, nr)
+		next.ServeHTTP(w, cloneRequest(r, headers, params))
 	})
 }
 
