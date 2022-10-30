@@ -3,6 +3,7 @@ package handler
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -20,7 +21,6 @@ import (
 
 type PlexConfig struct {
 	BaseUrl          string
-	Hostname         string
 	Token            string
 	PlaxtUrl         string
 	RedirectWebApp   string
@@ -54,7 +54,16 @@ func NewPlexClient(config PlexConfig) *PlexClient {
 		return nil
 	}
 
-	proxy := newSingleHostReverseProxy(u, config.Hostname)
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+
+	proxy := httputil.NewSingleHostReverseProxy(u)
+	proxy.Transport = transport
+	proxy.FlushInterval = -1
+	proxy.ErrorLog = common.GetLogger()
+	proxy.ModifyResponse = modifyResponse
+	proxy.ErrorHandler = proxyErrorHandler
+
 	client, _ := plex.New(config.BaseUrl, config.Token)
 
 	var plaxtUrl string

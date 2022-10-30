@@ -21,7 +21,6 @@ var (
 func init() {
 	plexClient = NewPlexClient(PlexConfig{
 		BaseUrl:          os.Getenv("PLEX_BASEURL"),
-		Hostname:         os.Getenv("PLEX_HOSTNAME"),
 		Token:            os.Getenv("PLEX_TOKEN"),
 		PlaxtUrl:         os.Getenv("PLAXT_URL"),
 		RedirectWebApp:   os.Getenv("REDIRECT_WEB_APP"),
