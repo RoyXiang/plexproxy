@@ -20,6 +20,7 @@ import (
 
 type PlexConfig struct {
 	BaseUrl          string
+	Hostname         string
 	Token            string
 	PlaxtUrl         string
 	RedirectWebApp   string
@@ -53,12 +54,7 @@ func NewPlexClient(config PlexConfig) *PlexClient {
 		return nil
 	}
 
-	proxy := httputil.NewSingleHostReverseProxy(u)
-	proxy.FlushInterval = -1
-	proxy.ErrorLog = common.GetLogger()
-	proxy.ModifyResponse = modifyResponse
-	proxy.ErrorHandler = proxyErrorHandler
-
+	proxy := newSingleHostReverseProxy(u, config.Hostname)
 	client, _ := plex.New(config.BaseUrl, config.Token)
 
 	var plaxtUrl string
