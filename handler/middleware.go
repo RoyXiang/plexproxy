@@ -26,26 +26,40 @@ var (
 	reLocalAddresses = regexp.MustCompile(` localAddresses="[^"]*"`)
 )
 
-func sslMiddleware(next http.Handler) http.Handler {
+func plexTvMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if plexClient.sslHost != "" && r.Body != nil {
-			name := "Connection[][uri]"
-			query := r.URL.Query()
-			if query.Has(name) {
-				query.Set(name, "https://"+plexClient.sslHost)
-			}
-			nr := cloneRequest(r, r.Header, query)
-
-			bodyBytes, _ := io.ReadAll(r.Body)
-			sslHost := fmt.Sprintf("address=\"%s\" scheme=\"https\"", plexClient.sslHost)
-			modifiedBody := bytes.ReplaceAll(bodyBytes, []byte("host=\"\""), []byte(sslHost))
-			modifiedBody = reLocalAddresses.ReplaceAll(modifiedBody, []byte(""))
-			nr.Body = io.NopCloser(bytes.NewReader(modifiedBody))
-
-			next.ServeHTTP(w, nr)
-		} else {
+		if plexClient.sslHost == "" {
 			next.ServeHTTP(w, r)
+			return
 		}
+
+		var bodyBytes []byte
+		path := r.URL.EscapedPath()
+		query := r.URL.Query()
+		if r.Body != nil {
+			bodyBytes, _ = io.ReadAll(r.Body)
+			common.GetLogger().Printf("%s", string(bodyBytes))
+		}
+
+		switch path {
+		case "/servers.xml":
+			sslHost := fmt.Sprintf("address=\"%s\" scheme=\"https\"", plexClient.sslHost)
+			bodyBytes = bytes.ReplaceAll(bodyBytes, []byte("host=\"\""), []byte(sslHost))
+			bodyBytes = reLocalAddresses.ReplaceAll(bodyBytes, []byte(""))
+		default:
+			if strings.HasPrefix(path, "/devices/") {
+				name := "Connection[][uri]"
+				if query.Has(name) {
+					query.Set(name, "https://"+plexClient.sslHost)
+				}
+			}
+		}
+
+		nr := cloneRequest(r, r.Header, query)
+		if bodyBytes != nil {
+			nr.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+		}
+		next.ServeHTTP(w, nr)
 	})
 }
 
