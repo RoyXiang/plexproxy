@@ -23,6 +23,18 @@ var (
 	userCtxKey      = &ctxKeyType{"user"}
 )
 
+func sslMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if plexClient.sslHost != "" && r.Body != nil {
+			bodyBytes, _ := io.ReadAll(r.Body)
+			sslHost := fmt.Sprintf("address=\"%s\" scheme=\"https\"", plexClient.sslHost)
+			modifiedBody := strings.ReplaceAll(string(bodyBytes), "host=\"\"", sslHost)
+			r.Body = io.NopCloser(strings.NewReader(modifiedBody))
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func normalizeMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		headers := http.Header{}
