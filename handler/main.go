@@ -47,13 +47,11 @@ func init() {
 func NewRouter() http.Handler {
 	r := mux.NewRouter()
 	r.Use(handlers.ProxyHeaders, normalizeMiddleware)
-	if !plexClient.NoRequestLogs {
-		r.Use(middleware.Logger)
-	}
 
 	plexTvUrl, _ := url.Parse("https://www." + domainPlexTv)
 	plexTvProxy := httputil.NewSingleHostReverseProxy(plexTvUrl)
 	plexTvRouter := r.Host(domainPlexTv).Subrouter()
+	plexTvRouter.Use(middleware.Logger)
 	sslRouter := plexTvRouter.MatcherFunc(func(r *http.Request, match *mux.RouteMatch) bool {
 		return strings.Index(r.URL.Path, "servers.xml") != -1
 	}).Subrouter()
@@ -64,6 +62,9 @@ func NewRouter() http.Handler {
 	pmsRouter := r.MatcherFunc(func(r *http.Request, match *mux.RouteMatch) bool {
 		return r.Host != domainPlexTv
 	}).Subrouter()
+	if !plexClient.NoRequestLogs {
+		pmsRouter.Use(middleware.Logger)
+	}
 	pmsRouter.Use(wrapMiddleware, middleware.Recoverer, trafficMiddleware)
 	if redisClient != nil {
 		// bypass cache
