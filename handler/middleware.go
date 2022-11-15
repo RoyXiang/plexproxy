@@ -29,12 +29,19 @@ var (
 func sslMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if plexClient.sslHost != "" && r.Body != nil {
-			nr := cloneRequest(r, r.Header, r.URL.Query())
+			name := "Connection[][uri]"
+			query := r.URL.Query()
+			if query.Has(name) {
+				query.Set(name, "https://"+plexClient.sslHost)
+			}
+			nr := cloneRequest(r, r.Header, query)
+
 			bodyBytes, _ := io.ReadAll(r.Body)
 			sslHost := fmt.Sprintf("address=\"%s\" scheme=\"https\"", plexClient.sslHost)
 			modifiedBody := bytes.ReplaceAll(bodyBytes, []byte("host=\"\""), []byte(sslHost))
 			modifiedBody = reLocalAddresses.ReplaceAll(modifiedBody, []byte(""))
 			nr.Body = io.NopCloser(bytes.NewReader(modifiedBody))
+
 			next.ServeHTTP(w, nr)
 		} else {
 			next.ServeHTTP(w, r)

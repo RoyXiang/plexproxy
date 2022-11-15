@@ -6,6 +6,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"strings"
 
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-redis/redis/v8"
@@ -53,7 +54,16 @@ func NewRouter() http.Handler {
 	plexTvUrl, _ := url.Parse("https://www." + domainPlexTv)
 	plexTvProxy := httputil.NewSingleHostReverseProxy(plexTvUrl)
 	plexTvRouter := r.Host(domainPlexTv).Subrouter()
-	sslRouter := plexTvRouter.Methods(http.MethodPost).Path("/servers.xml").Subrouter()
+	sslRouter := plexTvRouter.MatcherFunc(func(r *http.Request, _ *mux.RouteMatch) bool {
+		path := r.URL.EscapedPath()
+		if r.Method == http.MethodPost && path == "/servers.xml" {
+			return true
+		}
+		if r.Method == http.MethodPut && strings.HasPrefix(path, "/devices/") {
+			return true
+		}
+		return false
+	}).Subrouter()
 	sslRouter.Use(sslMiddleware)
 	sslRouter.PathPrefix("/").Handler(plexTvProxy)
 	plexTvRouter.PathPrefix("/").Handler(plexTvProxy)
