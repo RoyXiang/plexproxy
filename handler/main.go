@@ -6,7 +6,6 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
-	"strings"
 
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-redis/redis/v8"
@@ -47,14 +46,14 @@ func init() {
 func NewRouter() http.Handler {
 	r := mux.NewRouter()
 	r.Use(handlers.ProxyHeaders, normalizeMiddleware)
+	if !plexClient.NoRequestLogs {
+		r.Use(middleware.Logger)
+	}
 
 	plexTvUrl, _ := url.Parse("https://www." + domainPlexTv)
 	plexTvProxy := httputil.NewSingleHostReverseProxy(plexTvUrl)
 	plexTvRouter := r.Host(domainPlexTv).Subrouter()
-	plexTvRouter.Use(middleware.Logger)
-	sslRouter := plexTvRouter.MatcherFunc(func(r *http.Request, match *mux.RouteMatch) bool {
-		return strings.Index(r.URL.Path, "servers.xml") != -1
-	}).Subrouter()
+	sslRouter := plexTvRouter.Methods(http.MethodPost).Path("/servers.xml").Subrouter()
 	sslRouter.Use(sslMiddleware)
 	sslRouter.PathPrefix("/").Handler(plexTvProxy)
 	plexTvRouter.PathPrefix("/").Handler(plexTvProxy)
@@ -62,9 +61,6 @@ func NewRouter() http.Handler {
 	pmsRouter := r.MatcherFunc(func(r *http.Request, match *mux.RouteMatch) bool {
 		return r.Host != domainPlexTv
 	}).Subrouter()
-	if !plexClient.NoRequestLogs {
-		pmsRouter.Use(middleware.Logger)
-	}
 	pmsRouter.Use(wrapMiddleware, middleware.Recoverer, trafficMiddleware)
 	if redisClient != nil {
 		// bypass cache
