@@ -3,8 +3,6 @@ package handler
 import (
 	"log"
 	"net/http"
-	"net/http/httputil"
-	"net/url"
 	"os"
 
 	"github.com/go-chi/chi/v5/middleware"
@@ -23,7 +21,6 @@ var (
 func init() {
 	plexClient = NewPlexClient(PlexConfig{
 		BaseUrl:          os.Getenv("PLEX_BASEURL"),
-		SslHost:          os.Getenv("PLEX_SSL_HOST"),
 		Token:            os.Getenv("PLEX_TOKEN"),
 		PlaxtUrl:         os.Getenv("PLAXT_URL"),
 		RedirectWebApp:   os.Getenv("REDIRECT_WEB_APP"),
@@ -49,25 +46,14 @@ func NewRouter() http.Handler {
 	if !plexClient.NoRequestLogs {
 		r.Use(middleware.Logger)
 	}
+	r.Use(wrapMiddleware, middleware.Recoverer, trafficMiddleware)
 
-	plexTvUrl, _ := url.Parse("https://www." + domainPlexTv)
-	plexTvProxy := httputil.NewSingleHostReverseProxy(plexTvUrl)
-	plexTvRouter := r.Host(domainPlexTv).Subrouter()
-	updateRouter := plexTvRouter.Methods(http.MethodPost, http.MethodPut).Subrouter()
-	updateRouter.Use(plexTvMiddleware)
-	updateRouter.PathPrefix("/").Handler(plexTvProxy)
-	plexTvRouter.PathPrefix("/").Handler(plexTvProxy)
-
-	pmsRouter := r.MatcherFunc(func(r *http.Request, match *mux.RouteMatch) bool {
-		return r.Host != domainPlexTv
-	}).Subrouter()
-	pmsRouter.Use(wrapMiddleware, middleware.Recoverer, trafficMiddleware)
 	if redisClient != nil {
 		// bypass cache
-		pmsRouter.PathPrefix("/:/").Handler(plexClient)
-		pmsRouter.PathPrefix("/library/parts/").Handler(plexClient)
+		r.PathPrefix("/:/").Handler(plexClient)
+		r.PathPrefix("/library/parts/").Handler(plexClient)
 
-		staticRouter := pmsRouter.Methods(http.MethodGet).Subrouter()
+		staticRouter := r.Methods(http.MethodGet).Subrouter()
 		staticRouter.Use(staticMiddleware)
 		staticRouter.Path("/library/media/{key}/chapterImages/{id}").Handler(plexClient)
 		staticRouter.Path("/library/metadata/{key}/art/{id}").Handler(plexClient)
@@ -76,11 +62,11 @@ func NewRouter() http.Handler {
 		staticRouter.PathPrefix("/web/js/").Handler(plexClient)
 		staticRouter.PathPrefix("/web/static/").Handler(plexClient)
 
-		dynamicRouter := pmsRouter.Methods(http.MethodGet).Subrouter()
+		dynamicRouter := r.Methods(http.MethodGet).Subrouter()
 		dynamicRouter.Use(dynamicMiddleware)
 		dynamicRouter.PathPrefix("/").Handler(plexClient)
 	}
-	pmsRouter.PathPrefix("/").Handler(plexClient)
 
+	r.PathPrefix("/").Handler(plexClient)
 	return r
 }

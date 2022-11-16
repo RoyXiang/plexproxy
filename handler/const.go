@@ -5,8 +5,6 @@ import (
 )
 
 const (
-	domainPlexTv = "plex.tv"
-
 	headerPlexPrefix     = "X-Plex-"
 	headerCacheStatus    = "X-Plex-Cache-Status"
 	headerClientIdentity = "X-Plex-Client-Identifier"

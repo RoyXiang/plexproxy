@@ -21,7 +21,6 @@ import (
 
 type PlexConfig struct {
 	BaseUrl          string
-	SslHost          string
 	Token            string
 	PlaxtUrl         string
 	RedirectWebApp   string
@@ -33,7 +32,6 @@ type PlexClient struct {
 	proxy  *httputil.ReverseProxy
 	client *plex.Plex
 
-	sslHost          string
 	plaxtUrl         string
 	redirectWebApp   bool
 	disableTranscode bool
@@ -94,7 +92,6 @@ func NewPlexClient(config PlexConfig) *PlexClient {
 	return &PlexClient{
 		proxy:            proxy,
 		client:           client,
-		sslHost:          config.SslHost,
 		plaxtUrl:         plaxtUrl,
 		redirectWebApp:   redirectWebApp,
 		disableTranscode: disableTranscode,
