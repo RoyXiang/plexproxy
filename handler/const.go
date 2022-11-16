@@ -1,9 +1,5 @@
 package handler
 
-import (
-	"time"
-)
-
 const (
 	headerPlexPrefix     = "X-Plex-"
 	headerCacheStatus    = "X-Plex-Cache-Status"
@@ -23,9 +19,6 @@ const (
 	cachePrefixDynamic = "dynamic"
 	cachePrefixStatic  = "static"
 	cachePrefixPlex    = "plex"
-
-	cacheTtlDynamic = time.Second * 5
-	cacheTtlStatic  = time.Hour
 
 	contentTypeAny = "*/*"
 	contentTypeXml = "xml"
