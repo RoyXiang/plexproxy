@@ -3,6 +3,7 @@ package handler
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/RoyXiang/plexproxy/common"
 	"github.com/jrudio/go-plex-client"
@@ -22,6 +24,8 @@ type PlexConfig struct {
 	BaseUrl          string
 	Token            string
 	PlaxtUrl         string
+	StaticCacheTtl   string
+	DynamicCacheTtl  string
 	RedirectWebApp   string
 	DisableTranscode string
 	NoRequestLogs    string
@@ -30,6 +34,9 @@ type PlexConfig struct {
 type PlexClient struct {
 	proxy  *httputil.ReverseProxy
 	client *plex.Plex
+
+	staticCacheTtl  time.Duration
+	dynamicCacheTtl time.Duration
 
 	plaxtUrl         string
 	redirectWebApp   bool
@@ -53,7 +60,11 @@ func NewPlexClient(config PlexConfig) *PlexClient {
 		return nil
 	}
 
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+
 	proxy := httputil.NewSingleHostReverseProxy(u)
+	proxy.Transport = transport
 	proxy.FlushInterval = -1
 	proxy.ErrorLog = common.GetLogger()
 	proxy.ModifyResponse = modifyResponse
@@ -65,6 +76,15 @@ func NewPlexClient(config PlexConfig) *PlexClient {
 	u, err = url.Parse(config.PlaxtUrl)
 	if err == nil && strings.HasSuffix(u.Path, "/api") && u.Query().Get("id") != "" {
 		plaxtUrl = u.String()
+	}
+
+	staticCacheTtl, err := time.ParseDuration(config.StaticCacheTtl)
+	if err != nil {
+		staticCacheTtl = time.Hour
+	}
+	dynamicCacheTtl, err := time.ParseDuration(config.DynamicCacheTtl)
+	if err != nil {
+		dynamicCacheTtl = time.Second
 	}
 
 	var redirectWebApp, disableTranscode, noRequestLogs bool
@@ -88,6 +108,8 @@ func NewPlexClient(config PlexConfig) *PlexClient {
 		proxy:            proxy,
 		client:           client,
 		plaxtUrl:         plaxtUrl,
+		staticCacheTtl:   staticCacheTtl,
+		dynamicCacheTtl:  dynamicCacheTtl,
 		redirectWebApp:   redirectWebApp,
 		disableTranscode: disableTranscode,
 		NoRequestLogs:    noRequestLogs,

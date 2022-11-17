@@ -18,4 +18,6 @@ release:
 changelog:
   filters:
     exclude:
+      - "^build\(deps\)"
       - "^Merge branch"
+      - "^Revert"

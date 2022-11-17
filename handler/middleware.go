@@ -111,7 +111,7 @@ func staticMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), cacheInfoCtxKey, &cacheInfo{
 			Prefix: cachePrefixStatic,
-			Ttl:    cacheTtlStatic,
+			Ttl:    plexClient.staticCacheTtl,
 		})
 		r = r.WithContext(ctx)
 		cacheMiddleware(next).ServeHTTP(w, r)
@@ -125,7 +125,7 @@ func dynamicMiddleware(next http.Handler) http.Handler {
 		case ".css", ".ico", ".jpeg", ".jpg", ".webp":
 			ctx = context.WithValue(r.Context(), cacheInfoCtxKey, &cacheInfo{
 				Prefix: cachePrefixStatic,
-				Ttl:    cacheTtlStatic,
+				Ttl:    plexClient.staticCacheTtl,
 			})
 		case ".m3u8", ".ts":
 			ctx = r.Context()
@@ -136,7 +136,7 @@ func dynamicMiddleware(next http.Handler) http.Handler {
 			}
 			ctx = context.WithValue(r.Context(), cacheInfoCtxKey, &cacheInfo{
 				Prefix: cachePrefixDynamic,
-				Ttl:    cacheTtlDynamic,
+				Ttl:    plexClient.dynamicCacheTtl,
 			})
 		}
 		cacheMiddleware(next).ServeHTTP(w, r.WithContext(ctx))
