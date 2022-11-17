@@ -36,7 +36,7 @@ env CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" github.com/RoyXiang/plex
      * Or, you can set it to [the official one](https://plaxt.astandke.com/)
    - `PLEX_TOKEN` (Optional, if you need it, see [here](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/))
    - `STATIC_CACHE_TTL` (Optional, default: `1h`, which controls the cache TTL of static files)
-   - `DYNAMIC_CACHE_TTL` (Optional, default: `5s`, which controls the cache TTL of dynamic requests)
+   - `DYNAMIC_CACHE_TTL` (Optional, default: `1s`, which controls the cache TTL of dynamic requests)
    - `REDIRECT_WEB_APP` (Optional, default: `true`)
    - `DISABLE_TRANSCODE` (Optional, default: `true`)
    - `NO_REQUEST_LOGS` (Optional, default: `false`)

@@ -84,7 +84,7 @@ func NewPlexClient(config PlexConfig) *PlexClient {
 	}
 	dynamicCacheTtl, err := time.ParseDuration(config.DynamicCacheTtl)
 	if err != nil {
-		dynamicCacheTtl = time.Second * 5
+		dynamicCacheTtl = time.Second
 	}
 
 	var redirectWebApp, disableTranscode, noRequestLogs bool
