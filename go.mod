@@ -6,7 +6,7 @@ require (
 	github.com/go-chi/chi/v5 v5.0.10
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/gorilla/handlers v1.5.2
-	github.com/gorilla/mux v1.8.0
+	github.com/gorilla/mux v1.8.1
 	github.com/jrudio/go-plex-client v0.0.0-20220106065909-9e1d590b99aa
 	github.com/xanderstrike/plexhooks v0.0.0-20200926011736-c63bcd35fe3e
 )
