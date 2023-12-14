@@ -6,14 +6,12 @@ import (
 	"os"
 
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 )
 
 var (
-	plexClient  *PlexClient
-	redisClient *redis.Client
+	plexClient *PlexClient
 
 	emptyStruct = struct{}{}
 )
@@ -23,22 +21,12 @@ func init() {
 		BaseUrl:          os.Getenv("PLEX_BASEURL"),
 		Token:            os.Getenv("PLEX_TOKEN"),
 		PlaxtUrl:         os.Getenv("PLAXT_URL"),
-		StaticCacheTtl:   os.Getenv("STATIC_CACHE_TTL"),
-		DynamicCacheTtl:  os.Getenv("DYNAMIC_CACHE_TTL"),
 		RedirectWebApp:   os.Getenv("REDIRECT_WEB_APP"),
 		DisableTranscode: os.Getenv("DISABLE_TRANSCODE"),
 		NoRequestLogs:    os.Getenv("NO_REQUEST_LOGS"),
 	})
 	if plexClient == nil {
 		log.Fatalln("Please configure PLEX_BASEURL as a valid URL at first")
-	}
-
-	redisUrl := os.Getenv("REDIS_URL")
-	if redisUrl != "" {
-		options, err := redis.ParseURL(redisUrl)
-		if err == nil {
-			redisClient = redis.NewClient(options)
-		}
 	}
 }
 
@@ -50,24 +38,22 @@ func NewRouter() http.Handler {
 	}
 	r.Use(wrapMiddleware, middleware.Recoverer, trafficMiddleware)
 
-	if redisClient != nil {
-		// bypass cache
-		r.PathPrefix("/:/").Handler(plexClient)
-		r.PathPrefix("/library/parts/").Handler(plexClient)
+	// bypass cache
+	r.PathPrefix("/:/").Handler(plexClient)
+	r.PathPrefix("/library/parts/").Handler(plexClient)
 
-		staticRouter := r.Methods(http.MethodGet).Subrouter()
-		staticRouter.Use(staticMiddleware)
-		staticRouter.Path("/library/media/{key}/chapterImages/{id}").Handler(plexClient)
-		staticRouter.Path("/library/metadata/{key}/art/{id}").Handler(plexClient)
-		staticRouter.Path("/library/metadata/{key}/thumb/{id}").Handler(plexClient)
-		staticRouter.Path("/photo/:/transcode").Handler(plexClient)
-		staticRouter.PathPrefix("/web/js/").Handler(plexClient)
-		staticRouter.PathPrefix("/web/static/").Handler(plexClient)
+	staticRouter := r.Methods(http.MethodGet).Subrouter()
+	staticRouter.Use(staticMiddleware)
+	staticRouter.Path("/library/media/{key}/chapterImages/{id}").Handler(plexClient)
+	staticRouter.Path("/library/metadata/{key}/art/{id}").Handler(plexClient)
+	staticRouter.Path("/library/metadata/{key}/thumb/{id}").Handler(plexClient)
+	staticRouter.Path("/photo/:/transcode").Handler(plexClient)
+	staticRouter.PathPrefix("/web/js/").Handler(plexClient)
+	staticRouter.PathPrefix("/web/static/").Handler(plexClient)
 
-		dynamicRouter := r.Methods(http.MethodGet).Subrouter()
-		dynamicRouter.Use(dynamicMiddleware)
-		dynamicRouter.PathPrefix("/").Handler(plexClient)
-	}
+	dynamicRouter := r.Methods(http.MethodGet).Subrouter()
+	dynamicRouter.Use(dynamicMiddleware)
+	dynamicRouter.PathPrefix("/").Handler(plexClient)
 
 	r.PathPrefix("/").Handler(plexClient)
 	return r

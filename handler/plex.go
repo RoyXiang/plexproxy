@@ -2,7 +2,6 @@ package handler
 
 import (
 	"bytes"
-	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -16,6 +15,7 @@ import (
 	"time"
 
 	"github.com/RoyXiang/plexproxy/common"
+	"github.com/bluele/gcache"
 	"github.com/jrudio/go-plex-client"
 	"github.com/xanderstrike/plexhooks"
 )
@@ -35,8 +35,8 @@ type PlexClient struct {
 	proxy  *httputil.ReverseProxy
 	client *plex.Plex
 
-	staticCacheTtl  time.Duration
-	dynamicCacheTtl time.Duration
+	staticCache  gcache.Cache
+	dynamicCache gcache.Cache
 
 	plaxtUrl         string
 	redirectWebApp   bool
@@ -78,14 +78,8 @@ func NewPlexClient(config PlexConfig) *PlexClient {
 		plaxtUrl = u.String()
 	}
 
-	staticCacheTtl, err := time.ParseDuration(config.StaticCacheTtl)
-	if err != nil {
-		staticCacheTtl = time.Hour
-	}
-	dynamicCacheTtl, err := time.ParseDuration(config.DynamicCacheTtl)
-	if err != nil {
-		dynamicCacheTtl = time.Second
-	}
+	staticCache := gcache.New(1000).LFU().Build()
+	dynamicCache := gcache.New(100).LRU().Expiration(time.Second).Build()
 
 	var redirectWebApp, disableTranscode, noRequestLogs bool
 	if b, err := strconv.ParseBool(config.RedirectWebApp); err == nil {
@@ -108,8 +102,8 @@ func NewPlexClient(config PlexConfig) *PlexClient {
 		proxy:            proxy,
 		client:           client,
 		plaxtUrl:         plaxtUrl,
-		staticCacheTtl:   staticCacheTtl,
-		dynamicCacheTtl:  dynamicCacheTtl,
+		staticCache:      staticCache,
+		dynamicCache:     dynamicCache,
 		redirectWebApp:   redirectWebApp,
 		disableTranscode: disableTranscode,
 		NoRequestLogs:    noRequestLogs,
@@ -192,27 +186,11 @@ func (c *PlexClient) fetchUsers(token string) {
 	c.MulLock.Lock(lockKeyUsers)
 	defer c.MulLock.Unlock(lockKeyUsers)
 
-	ctx := context.Background()
-	cacheKey := fmt.Sprintf("%s:token:%s", cachePrefixPlex, token)
-	isCacheEnabled := redisClient != nil
-
-	if isCacheEnabled {
-		var user plexUser
-		err := redisClient.Get(ctx, cacheKey).Scan(&user)
-		if err == nil {
-			c.users[token] = &user
-			return
-		}
-	}
-
 	userInfo := c.GetAccountInfo(token)
 	if userInfo.ID > 0 {
 		user := plexUser{
 			Id:       userInfo.ID,
 			Username: userInfo.Username,
-		}
-		if isCacheEnabled {
-			redisClient.Set(ctx, cacheKey, &user, 0).Val()
 		}
 		c.users[token] = &user
 		return
@@ -224,10 +202,6 @@ func (c *PlexClient) fetchUsers(token string) {
 			user := plexUser{
 				Id:       friend.UserId,
 				Username: friend.Username,
-			}
-			if isCacheEnabled {
-				cacheKey = fmt.Sprintf("%s:token:%s", cachePrefixPlex, friend.AccessToken)
-				redisClient.Set(ctx, cacheKey, &user, 0).Val()
 			}
 			c.users[friend.AccessToken] = &user
 		}

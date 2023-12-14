@@ -3,11 +3,9 @@ package handler
 import (
 	"context"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"runtime/debug"
 	"strings"
-	"time"
 
 	"github.com/go-chi/chi/v5/middleware"
 )
@@ -88,12 +86,4 @@ func getAcceptContentType(r *http.Request) string {
 		}
 	}
 	return contentTypeXml
-}
-
-func writeToCache(key string, resp *http.Response, ttl time.Duration) {
-	b, err := httputil.DumpResponse(resp, true)
-	if err != nil {
-		return
-	}
-	redisClient.Set(context.Background(), key, b, ttl)
 }
