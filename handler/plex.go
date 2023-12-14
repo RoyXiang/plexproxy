@@ -127,10 +127,7 @@ func (a sessionData) Check(b sessionData) bool {
 		return true
 	}
 	if a.progress != b.progress {
-		if a.status == sessionPlaying {
-			return false
-		}
-		return true
+		return a.status != sessionPlaying
 	}
 	return false
 }
