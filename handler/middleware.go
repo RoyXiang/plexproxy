@@ -193,6 +193,9 @@ func cacheMiddleware(next http.Handler) http.Handler {
 		params := r.URL.Query()
 		switch info.Prefix {
 		case cachePrefixStatic:
+			if plexClient.staticCache == nil {
+				return
+			}
 			cache = plexClient.staticCache
 		case cachePrefixDynamic:
 			if user := r.Context().Value(userCtxKey); user != nil {

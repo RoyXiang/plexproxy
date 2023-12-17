@@ -33,6 +33,7 @@ env CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" github.com/RoyXiang/plex
      * Set it if you run an instance of [Plaxt](https://github.com/XanderStrike/goplaxt)
      * Or, you can set it to [the official one](https://plaxt.astandke.com/)
    - `PLEX_TOKEN` (Optional, if you need it, see [here](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/))
+   - `STATIC_CACHE_SIZE` (Optional, the cache size of static files, e.g. CSS files, images, default: `1000`)
    - `REDIRECT_WEB_APP` (Optional, default: `true`)
    - `DISABLE_TRANSCODE` (Optional, default: `true`)
    - `NO_REQUEST_LOGS` (Optional, default: `false`)

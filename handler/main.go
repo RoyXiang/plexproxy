@@ -21,6 +21,7 @@ func init() {
 		BaseUrl:          os.Getenv("PLEX_BASEURL"),
 		Token:            os.Getenv("PLEX_TOKEN"),
 		PlaxtUrl:         os.Getenv("PLAXT_URL"),
+		StaticCacheSize:  os.Getenv("STATIC_CACHE_SIZE"),
 		RedirectWebApp:   os.Getenv("REDIRECT_WEB_APP"),
 		DisableTranscode: os.Getenv("DISABLE_TRANSCODE"),
 		NoRequestLogs:    os.Getenv("NO_REQUEST_LOGS"),
