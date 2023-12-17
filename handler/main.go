@@ -37,13 +37,17 @@ func NewRouter() http.Handler {
 	if !plexClient.NoRequestLogs {
 		r.Use(middleware.Logger)
 	}
-	r.Use(wrapMiddleware, middleware.Recoverer, trafficMiddleware)
+	r.Use(wrapMiddleware, middleware.Recoverer)
 
-	// bypass cache
-	r.PathPrefix("/:/").Handler(plexClient)
-	r.PathPrefix("/library/parts/").Handler(plexClient)
+	streamingRouter := r.NewRoute().Subrouter()
+	streamingRouter.PathPrefix("/library/parts/").Handler(plexClient)
+	streamingRouter.PathPrefix("/video/:/transcode/").Handler(plexClient)
 
-	staticRouter := r.Methods(http.MethodGet).Subrouter()
+	getRouter := r.Methods(http.MethodGet).Subrouter()
+	getRouter.Use(trafficMiddleware)
+	getRouter.PathPrefix("/:/").Handler(plexClient)
+
+	staticRouter := getRouter.NewRoute().Subrouter()
 	staticRouter.Use(staticMiddleware)
 	staticRouter.Path("/library/media/{key}/chapterImages/{id}").Handler(plexClient)
 	staticRouter.Path("/library/metadata/{key}/art/{id}").Handler(plexClient)
@@ -52,7 +56,7 @@ func NewRouter() http.Handler {
 	staticRouter.PathPrefix("/web/js/").Handler(plexClient)
 	staticRouter.PathPrefix("/web/static/").Handler(plexClient)
 
-	dynamicRouter := r.Methods(http.MethodGet).Subrouter()
+	dynamicRouter := getRouter.NewRoute().Subrouter()
 	dynamicRouter.Use(dynamicMiddleware)
 	dynamicRouter.PathPrefix("/").Handler(plexClient)
 
