@@ -37,17 +37,15 @@ func NewRouter() http.Handler {
 	if !plexClient.NoRequestLogs {
 		r.Use(middleware.Logger)
 	}
-	r.Use(wrapMiddleware, middleware.Recoverer)
+	r.Use(wrapMiddleware, middleware.Recoverer, trafficMiddleware)
 
-	streamingRouter := r.NewRoute().Subrouter()
-	streamingRouter.PathPrefix("/library/parts/").Handler(plexClient)
-	streamingRouter.PathPrefix("/video/:/transcode/").Handler(plexClient)
+	noCacheRouter := r.Methods(http.MethodGet).Subrouter()
+	noCacheRouter.Use(middleware.NoCache)
+	noCacheRouter.PathPrefix("/:/").Handler(plexClient)
+	noCacheRouter.PathPrefix("/library/parts/").Handler(plexClient)
+	noCacheRouter.PathPrefix("/video/:/transcode/").Handler(plexClient)
 
-	getRouter := r.Methods(http.MethodGet).Subrouter()
-	getRouter.Use(trafficMiddleware)
-	getRouter.PathPrefix("/:/").Handler(plexClient)
-
-	staticRouter := getRouter.NewRoute().Subrouter()
+	staticRouter := r.Methods(http.MethodGet).Subrouter()
 	staticRouter.Use(staticMiddleware)
 	staticRouter.Path("/library/media/{key}/chapterImages/{id}").Handler(plexClient)
 	staticRouter.Path("/library/metadata/{key}/art/{id}").Handler(plexClient)
@@ -56,7 +54,7 @@ func NewRouter() http.Handler {
 	staticRouter.PathPrefix("/web/js/").Handler(plexClient)
 	staticRouter.PathPrefix("/web/static/").Handler(plexClient)
 
-	dynamicRouter := getRouter.NewRoute().Subrouter()
+	dynamicRouter := r.Methods(http.MethodGet).Subrouter()
 	dynamicRouter.Use(dynamicMiddleware)
 	dynamicRouter.PathPrefix("/").Handler(plexClient)
 
