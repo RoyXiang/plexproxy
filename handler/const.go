@@ -9,12 +9,18 @@ const (
 	headerPageStart      = "X-Plex-Container-Start"
 	headerToken          = "X-Plex-Token"
 	headerUserId         = "X-Plex-User-Id"
+
 	headerAccept         = "Accept"
 	headerAcceptLanguage = "Accept-Language"
 	headerCacheControl   = "Cache-Control"
 	headerContentType    = "Content-Type"
 	headerRange          = "Range"
 	headerVary           = "Vary"
+
+	headerForwardedFor    = "X-Forwarded-For"
+	headerRealIP          = "X-Real-IP"
+	headerForwardedProto  = "X-Forwarded-Proto"
+	headerForwardedScheme = "X-Forwarded-Scheme"
 
 	cachePrefixDynamic = "dynamic"
 	cachePrefixStatic  = "static"

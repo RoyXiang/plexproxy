@@ -65,7 +65,35 @@ func cloneRequest(r *http.Request, headers http.Header, query url.Values) *http.
 		nr.URL.RawQuery = query.Encode()
 		nr.RequestURI = nr.URL.RequestURI()
 	}
+	if fwd := getIP(headers); fwd != "" {
+		nr.RemoteAddr = fwd
+	}
+	if scheme := getScheme(headers); scheme != "" {
+		nr.URL.Scheme = scheme
+	}
 	return nr
+}
+
+func getIP(headers http.Header) (addr string) {
+	if fwd := headers.Get(headerForwardedFor); fwd != "" {
+		s := strings.Index(fwd, ", ")
+		if s == -1 {
+			s = len(fwd)
+		}
+		addr = fwd[:s]
+	} else if fwd = headers.Get(headerRealIP); fwd != "" {
+		addr = fwd
+	}
+	return
+}
+
+func getScheme(headers http.Header) (scheme string) {
+	if proto := headers.Get(headerForwardedProto); proto != "" {
+		scheme = strings.ToLower(proto)
+	} else if proto = headers.Get(headerForwardedScheme); proto != "" {
+		scheme = strings.ToLower(proto)
+	}
+	return
 }
 
 func getAcceptContentType(r *http.Request) string {
