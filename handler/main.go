@@ -38,12 +38,6 @@ func NewRouter() http.Handler {
 	}
 	r.Use(wrapMiddleware, middleware.Recoverer, trafficMiddleware)
 
-	noCacheRouter := r.Methods(http.MethodGet).Subrouter()
-	noCacheRouter.Use(middleware.NoCache)
-	noCacheRouter.PathPrefix("/:/").Handler(plexClient)
-	noCacheRouter.PathPrefix("/library/parts/").Handler(plexClient)
-	noCacheRouter.PathPrefix("/video/:/transcode/").Handler(plexClient)
-
 	staticRouter := r.Methods(http.MethodGet).Subrouter()
 	staticRouter.Use(staticMiddleware)
 	staticRouter.Path("/library/media/{key}/chapterImages/{id}").Handler(plexClient)

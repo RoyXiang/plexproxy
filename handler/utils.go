@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"mime"
 	"net/http"
 	"net/url"
 	"runtime/debug"
@@ -18,22 +19,18 @@ func wrapResponseWriter(w http.ResponseWriter, protoMajor int) middleware.WrapRe
 }
 
 func modifyResponse(resp *http.Response) error {
-	contentType := resp.Header.Get(headerContentType)
-	if contentType == "" {
-		return nil
+	var mediaType string
+	if contentType := resp.Header.Get(headerContentType); contentType != "" {
+		mediaType, _, _ = mime.ParseMediaType(contentType)
 	}
-	pieces := strings.Split(contentType, "/")
-	if len(pieces) == 0 {
-		return nil
-	}
-	switch pieces[0] {
-	case "audio", "video":
-		resp.Header.Set(headerCacheControl, "no-cache")
-		resp.Header.Set(headerVary, "*")
-	case "image":
+	switch {
+	case mediaType == "text/css",
+		mediaType == "text/javascript",
+		strings.HasPrefix(mediaType, "image/"),
+		strings.HasPrefix(mediaType, "font/"):
 		resp.Header.Set(headerCacheControl, "public, max-age=86400, s-maxage=259200")
 	default:
-		resp.Header.Set(headerCacheControl, "no-cache")
+		resp.Header.Set(headerCacheControl, "no-cache, no-store, no-transform, must-revalidate, private, max-age=0, s-maxage=0")
 	}
 	return nil
 }
