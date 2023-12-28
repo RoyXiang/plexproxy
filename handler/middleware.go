@@ -121,24 +121,27 @@ func staticMiddleware(next http.Handler) http.Handler {
 
 func dynamicMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var ctx context.Context
+		nr := r
 		switch filepath.Ext(r.URL.EscapedPath()) {
-		case ".css", ".ico", ".jpeg", ".jpg", ".webp":
-			ctx = context.WithValue(r.Context(), cacheInfoCtxKey, &cacheInfo{
+		case ".css", ".ico", ".jpeg", ".jpg", ".js", ".webp":
+			ctx := context.WithValue(r.Context(), cacheInfoCtxKey, &cacheInfo{
 				Prefix: cachePrefixStatic,
 			})
+			nr = r.WithContext(ctx)
 		case ".m3u8", ".ts":
-			ctx = r.Context()
+			break
 		default:
 			if rh := r.Header.Get(headerRange); rh != "" {
-				ctx = r.Context()
+				break
+			} else if upgrade := r.Header.Get(headerUpgrade); upgrade == "websocket" {
 				break
 			}
-			ctx = context.WithValue(r.Context(), cacheInfoCtxKey, &cacheInfo{
+			ctx := context.WithValue(r.Context(), cacheInfoCtxKey, &cacheInfo{
 				Prefix: cachePrefixDynamic,
 			})
+			nr = r.WithContext(ctx)
 		}
-		cacheMiddleware(next).ServeHTTP(w, r.WithContext(ctx))
+		cacheMiddleware(next).ServeHTTP(w, nr)
 	})
 }
 

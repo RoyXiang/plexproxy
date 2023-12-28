@@ -16,6 +16,7 @@ const (
 	headerContentType    = "Content-Type"
 	headerRange          = "Range"
 	headerVary           = "Vary"
+	headerUpgrade        = "Upgrade"
 
 	headerForwardedFor    = "X-Forwarded-For"
 	headerRealIP          = "X-Real-IP"
