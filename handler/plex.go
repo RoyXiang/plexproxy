@@ -511,13 +511,10 @@ func (c *PlexClient) disableTranscoding(r *http.Request) *http.Request {
 	query.Set("directStreamAudio", "1")
 	query.Set("videoQuality", "100")
 	query.Set("videoResolution", "4096x2160")
-
-	protocol := query.Get("protocol")
-	switch protocol {
-	case "http":
-		query.Set("copyts", "0")
-		query.Set("hasMDE", "0")
-	}
+	query.Set("protocol", "hls")
+	query.Set("copyts", "1")
+	query.Set("hasMDE", "1")
+	query.Set("fastSeek", "1")
 
 	headers := r.Header
 	if extraProfile := headers.Get(headerExtraProfile); extraProfile != "" {
