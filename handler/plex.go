@@ -25,6 +25,7 @@ type PlexConfig struct {
 	Token            string
 	PlaxtUrl         string
 	StaticCacheSize  string
+	StaticCacheTtl   string
 	RedirectWebApp   string
 	DisableTranscode string
 	NoRequestLogs    string
@@ -77,12 +78,17 @@ func NewPlexClient(config PlexConfig) *PlexClient {
 		plaxtUrl = u.String()
 	}
 
-	var staticCache gcache.Cache
-	if config.StaticCacheSize == "" {
-		staticCache = gcache.New(1000).LFU().Build()
-	} else if staticCacheSize, err := strconv.Atoi(config.StaticCacheSize); err == nil && staticCacheSize > 0 {
-		staticCache = gcache.New(staticCacheSize).LFU().Build()
+	var (
+		staticCacheSize int
+		staticCacheTtl  time.Duration
+	)
+	if staticCacheSize, err = strconv.Atoi(config.StaticCacheSize); err != nil || staticCacheSize <= 0 {
+		staticCacheSize = 1000
 	}
+	if staticCacheTtl, err = time.ParseDuration(config.StaticCacheTtl); err != nil {
+		staticCacheTtl = time.Hour * 24 * 3
+	}
+	staticCache := gcache.New(staticCacheSize).LFU().Expiration(staticCacheTtl).Build()
 	dynamicCache := gcache.New(100).LRU().Expiration(time.Second).Build()
 
 	var redirectWebApp, disableTranscode, noRequestLogs bool
