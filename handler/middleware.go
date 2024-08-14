@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httputil"
 	"net/url"
 	"path/filepath"
 	"strconv"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/RoyXiang/plexproxy/common"
+	"github.com/bluele/gcache"
 )
 
 var (
@@ -111,7 +113,6 @@ func staticMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), cacheInfoCtxKey, &cacheInfo{
 			Prefix: cachePrefixStatic,
-			Ttl:    plexClient.staticCacheTtl,
 		})
 		r = r.WithContext(ctx)
 		cacheMiddleware(next).ServeHTTP(w, r)
@@ -120,26 +121,27 @@ func staticMiddleware(next http.Handler) http.Handler {
 
 func dynamicMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var ctx context.Context
+		nr := r
 		switch filepath.Ext(r.URL.EscapedPath()) {
-		case ".css", ".ico", ".jpeg", ".jpg", ".webp":
-			ctx = context.WithValue(r.Context(), cacheInfoCtxKey, &cacheInfo{
+		case ".css", ".ico", ".jpeg", ".jpg", ".js", ".webp":
+			ctx := context.WithValue(r.Context(), cacheInfoCtxKey, &cacheInfo{
 				Prefix: cachePrefixStatic,
-				Ttl:    plexClient.staticCacheTtl,
 			})
+			nr = r.WithContext(ctx)
 		case ".m3u8", ".ts":
-			ctx = r.Context()
+			break
 		default:
 			if rh := r.Header.Get(headerRange); rh != "" {
-				ctx = r.Context()
+				break
+			} else if upgrade := r.Header.Get(headerUpgrade); upgrade == "websocket" {
 				break
 			}
-			ctx = context.WithValue(r.Context(), cacheInfoCtxKey, &cacheInfo{
+			ctx := context.WithValue(r.Context(), cacheInfoCtxKey, &cacheInfo{
 				Prefix: cachePrefixDynamic,
-				Ttl:    plexClient.dynamicCacheTtl,
 			})
+			nr = r.WithContext(ctx)
 		}
-		cacheMiddleware(next).ServeHTTP(w, r.WithContext(ctx))
+		cacheMiddleware(next).ServeHTTP(w, nr)
 	})
 }
 
@@ -151,8 +153,8 @@ func cacheMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
+		var cache gcache.Cache
 		var cacheKey string
-		ctx := context.Background()
 		info := ctxValue.(*cacheInfo)
 
 		defer func() {
@@ -161,9 +163,8 @@ func cacheMiddleware(next http.Handler) http.Handler {
 				return
 			}
 			var resp *http.Response
-			b, err := redisClient.Get(ctx, cacheKey).Bytes()
-			if err == nil {
-				reader := bufio.NewReader(bytes.NewReader(b))
+			if cacheVal, err := cache.Get(cacheKey); err == nil {
+				reader := bufio.NewReader(bytes.NewReader(cacheVal.([]byte)))
 				resp, _ = http.ReadResponse(reader, r)
 			}
 			if resp == nil {
@@ -174,8 +175,11 @@ func cacheMiddleware(next http.Handler) http.Handler {
 					w.Header().Set(headerCacheStatus, "MISS")
 					w.WriteHeader(resp.StatusCode)
 					_, _ = w.Write(nw.Unwrap().(*httptest.ResponseRecorder).Body.Bytes())
-					if resp.StatusCode == http.StatusOK {
-						writeToCache(cacheKey, resp, info.Ttl)
+					if resp.StatusCode != http.StatusOK {
+						return
+					}
+					if b, err := httputil.DumpResponse(resp, true); err == nil {
+						cache.Set(cacheKey, b)
 					}
 				}()
 			} else {
@@ -183,9 +187,6 @@ func cacheMiddleware(next http.Handler) http.Handler {
 					w.Header().Set(headerCacheStatus, "HIT")
 					w.WriteHeader(resp.StatusCode)
 					_, _ = io.Copy(w, resp.Body)
-					if info.Prefix == cachePrefixStatic {
-						writeToCache(cacheKey, resp, info.Ttl)
-					}
 				}()
 			}
 			for k, v := range resp.Header {
@@ -195,7 +196,10 @@ func cacheMiddleware(next http.Handler) http.Handler {
 		params := r.URL.Query()
 		switch info.Prefix {
 		case cachePrefixStatic:
-			break
+			if plexClient.staticCache == nil {
+				return
+			}
+			cache = plexClient.staticCache
 		case cachePrefixDynamic:
 			if user := r.Context().Value(userCtxKey); user != nil {
 				params.Set(headerUserId, strconv.Itoa(user.(*plexUser).Id))
@@ -205,6 +209,7 @@ func cacheMiddleware(next http.Handler) http.Handler {
 			} else {
 				return
 			}
+			cache = plexClient.dynamicCache
 		default:
 			// invalid prefix
 			return

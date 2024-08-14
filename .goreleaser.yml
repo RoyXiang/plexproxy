@@ -20,4 +20,5 @@ changelog:
     exclude:
       - "^build\\(deps\\)"
       - "^Merge branch"
+      - "^Merge pull request"
       - "^Revert"
