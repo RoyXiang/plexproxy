@@ -13,8 +13,7 @@ the performance of a low-end server.
 
 ## Prerequisites
 
-1. Plex Media Server
-2. Redis (Optional)
+A fully-configured Plex Media Server.
 
 ## Install
 
